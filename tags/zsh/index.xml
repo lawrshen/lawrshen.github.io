@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>zsh on Don`t Panic :-)</title><link>https://lawrshen.github.io/tags/zsh/</link><description>Recent content in zsh on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Fri, 27 Aug 2021 23:49:47 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/tags/zsh/index.xml" rel="self" type="application/rss+xml"/><item><title>自定义配置一个简洁高效的Zsh</title><link>https://lawrshen.github.io/post/basic-zsh/</link><pubDate>Fri, 27 Aug 2021 23:49:47 +0800</pubDate><guid>https://lawrshen.github.io/post/basic-zsh/</guid><description>&lt;blockquote>
+&lt;p>事实上 oh-my-zsh 并不好用，严重拖慢了 Zsh 的速度，反而让你的工作并不高效。&lt;/p>
+&lt;/blockquote>
+&lt;p>Shell 是类 Unix 系统中超级好用的工具，而 Zsh 是 shell 中的佼佼者，但是现在网上一搜索 Zsh 的配置方案，遍地都是的互相复制粘贴的 oh-my-zsh 配置方案。&lt;/p></description></item></channel></rss>

@@ -1,0 +1,267 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="IE=edge,chrome=1">
+<title>计算机网络缺失的一课 Http - Don`t Panic :-)</title>
+<meta name=renderer content="webkit">
+<meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta http-equiv=cache-control content="no-transform">
+<meta http-equiv=cache-control content="no-siteapp">
+<meta name=theme-color content="#f8f5ec">
+<meta name=msapplication-navbutton-color content="#f8f5ec">
+<meta name=apple-mobile-web-app-capable content="yes">
+<meta name=apple-mobile-web-app-status-bar-style content="#f8f5ec">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FQBGCF2JH0"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-FQBGCF2JH0')</script>
+<meta name=author content="lawrshen"><meta name=description content="http详解"><meta name=keywords content="Blog,计算机技术,分享">
+<meta name=generator content="Hugo 0.87.0 with theme even">
+<link rel=canonical href=https://lawrshen.github.io/post/http/>
+<link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
+<link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
+<link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
+<link rel=manifest href=/manifest.json>
+<link rel=mask-icon href=/safari-pinned-tab.svg color=#5bbad5>
+<script async src=//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js></script>
+<link href=/sass/main.min.f92fd13721ddf72129410fd8250e73152cc6f2438082b6c0208dc24ee7c13fc4.css rel=stylesheet>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin=anonymous>
+<meta property="og:title" content="计算机网络缺失的一课 Http">
+<meta property="og:description" content="http详解">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://lawrshen.github.io/post/http/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2021-09-19T15:47:09+08:00">
+<meta property="article:modified_time" content="2022-05-19T11:53:28+08:00">
+<meta itemprop=name content="计算机网络缺失的一课 Http">
+<meta itemprop=description content="http详解"><meta itemprop=datePublished content="2021-09-19T15:47:09+08:00">
+<meta itemprop=dateModified content="2022-05-19T11:53:28+08:00">
+<meta itemprop=wordCount content="842">
+<meta itemprop=keywords content="http,"><meta name=twitter:card content="summary">
+<meta name=twitter:title content="计算机网络缺失的一课 Http">
+<meta name=twitter:description content="http详解"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
+<script src=https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js></script><![endif]-->
+</head>
+<body>
+<div id=mobile-navbar class=mobile-navbar>
+<div class=mobile-header-logo>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<div class=mobile-navbar-icon>
+<span></span>
+<span></span>
+<span></span>
+</div>
+</div>
+<nav id=mobile-menu class="mobile-menu slideout-menu">
+<ul class=mobile-menu-list>
+<a href=/>
+<li class=mobile-menu-item>Home</li>
+</a><a href=/post/>
+<li class=mobile-menu-item>Archives</li>
+</a><a href=/categories/>
+<li class=mobile-menu-item>Categories</li>
+</a><a href=/about/>
+<li class=mobile-menu-item>About</li>
+</a>
+</ul>
+</nav>
+<div class=container id=mobile-panel>
+<header id=header class=header>
+<div class=logo-wrapper>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<nav class=site-navbar>
+<ul id=menu class=menu>
+<li class=menu-item>
+<a class=menu-item-link href=/>Home</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/post/>Archives</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/categories/>Categories</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/about/>About</a>
+</li>
+</ul>
+</nav>
+</header>
+<main id=main class=main>
+<div class=content-wrapper>
+<div id=content class=content>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title>计算机网络缺失的一课 Http</h1>
+<div class=post-meta>
+<span class=post-time> 2021-09-19 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 842 words </span>
+<span class=more-meta> 2 mins read </span>
+<span id=busuanzi_container_page_pv class=more-meta> <span id=busuanzi_value_page_pv><img src=/img/spinner.svg alt=spinner.svg></span> times read </span>
+</div>
+</header>
+<div class=post-toc id=post-toc>
+<h2 class=post-toc-title>Contents</h2>
+<div class="post-toc-content always-active">
+<nav id=TableOfContents>
+<ul>
+<li><a href=#what-http->what HTTP ?</a></li>
+<li><a href=#http请求>http请求</a></li>
+<li><a href=#reference>reference</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<div class=post-outdated>
+<div class=hint>
+<p>[NOTE] Updated <span class=timeago datetime=2022-05-19T11:53:28 title="May 19, 2022">May 19, 2022</span>. This article may have outdated content or subject matter.</p>
+</div>
+</div>
+<div class=post-content>
+<div class="admonition info"><p class=admonition-title>背景</p>
+<p>上计网课的时候应用层协议蜻蜓点水的一笔带过了，期末也不设置考点，这块内容难免有所薄弱，但http协议作为常见的应用层协议，有一个基础的掌握还是有必要的。</p>
+</div>
+<p><img src=../../source/http/HTTP1-3.jpg alt=HTTP1-3></p>
+<h1 id=what-http->what HTTP ?</h1>
+<p>HTTP【HyperText Transfer Protocol「超文本传输协议」】 是一个在计算机世界里专门在两点之间传输文字、图片、音频、视频等超文本数据的约定和规范。</p>
+<h1 id=http请求>http请求</h1>
+<p>http请求由三部分组成，分别是：起始行、消息报头、请求正文</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-html data-lang=html>Request Line<span class=p>&lt;</span><span class=nt>CRLF</span><span class=p>&gt;</span>
+Header-Name: header-value<span class=p>&lt;</span><span class=nt>CRLF</span><span class=p>&gt;</span>
+Header-Name: header-value<span class=p>&lt;</span><span class=nt>CRLF</span><span class=p>&gt;</span>
+//一个或多个，均以<span class=p>&lt;</span><span class=nt>CRLF</span><span class=p>&gt;</span>结尾
+<span class=p>&lt;</span><span class=nt>CRLF</span><span class=p>&gt;</span>
+body//请求正文
+</code></pre></td></tr></table>
+</div>
+</div><p>1、起始行以一个方法符号开头，以空格分开，后面跟着请求的URI和协议的版本，格式如下：</p>
+<blockquote>
+<p>Method Request-URI HTTP-Version CRLF</p>
+</blockquote>
+<p>其中 Method表示请求方法；Request-URI是一个统一资源标识符；HTTP-Version表示请求的HTTP协议版本；CRLF表示回车和换行（除了作为结尾的CRLF外，不允许出现单独的CR或LF字符）。</p>
+<p><img src=../../source/http/http-request.image alt=http-request></p>
+<p><img src=../../source/http/http-request-example.image alt=http-request-example></p>
+<p>2、请求方法（所有方法全为大写）有多种，各个方法的解释如下：</p>
+<blockquote>
+<ul>
+<li>GET：请求获取Request-URI所标识的资源</li>
+<li>POST：在Request-URI所标识的资源后附加新的数据</li>
+<li>HEAD：求获取由Request-URI所标识的资源的响应消息报头</li>
+<li>PUT：请求服务器存储一个资源，并用Request-URI作为其标识</li>
+<li>DELETE：请求服务器删除Request-URI所标识的资源</li>
+<li>TRACE：请求服务器回送收到的请求信息，主要用于测试或诊断</li>
+<li>CONNECT：保留将来使用</li>
+<li>OPTIONS：请求查询服务器的性能，或者查询与资源相关的选项和需求</li>
+</ul>
+</blockquote>
+<hr>
+<p>响应行的报文格式如下：</p>
+<p><img src=../../source/http/response-line.image alt=response-line></p>
+<p>示例：</p>
+<p><img src=../../source/http/response-line-example.image alt=response-line-example></p>
+<p>主要有五类状态码：</p>
+<ul>
+<li>1××：提示信息，表示目前是协议处理的中间状态，还需要后续的操作；</li>
+<li>2××：成功，报文已经收到并被正确处理；</li>
+<li>3××：重定向，资源位置发生变动，需要客户端重新发送请求；</li>
+<li>4××：客户端错误，请求报文有误，服务器无法处理；</li>
+<li>5××：服务器错误，服务器在处理请求时内部发生了错误。</li>
+</ul>
+<p>内容协议请求头和对应的响应头对应关系如下:</p>
+<p><img src=../../source/http/http-req-res.image alt=http-req-res></p>
+<h1 id=reference>reference</h1>
+<p><a href=https://www.cnblogs.com/xiekun/p/14221020.html>51张图掌握HTTP</a></p>
+</div>
+<div class=post-copyright>
+<p class=copyright-item>
+<span class=item-title>Author</span>
+<span class=item-content><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</p>
+<p class=copyright-item>
+<span class=item-title>LastMod</span>
+<span class=item-content>
+2022-05-19
+<a href=https://github.com/lawrshen/lawrshen.github.io/commit/93cf62405fccca3eef340993600352c94ea554e1 title="feat: add tcp control">(93cf624)</a>
+</span>
+</p>
+<p class=copyright-item>
+<span class=item-title>License</span>
+<span class=item-content><a rel="license noopener" href=https://creativecommons.org/licenses/by-nc-nd/4.0/ target=_blank>CC BY-NC-ND 4.0</a></span>
+</p>
+</div>
+<footer class=post-footer>
+<div class=post-tags>
+<a href=/tags/http/>http</a>
+</div>
+<nav class=post-nav>
+<a class=prev href=/post/awk/>
+<i class="iconfont icon-left"></i>
+<span class="prev-text nav-default">Awk命令简介</span>
+<span class="prev-text nav-mobile">Prev</span>
+</a>
+<a class=next href=/post/go-mod/>
+<span class="next-text nav-default">Go Mod版本管理概要</span>
+<span class="next-text nav-mobile">Next</span>
+<i class="iconfont icon-right"></i>
+</a>
+</nav>
+</footer>
+</article>
+</div>
+<div id=gitalk-container></div>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css crossorigin=anonymous>
+<script src=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js crossorigin=anonymous></script>
+<script type=text/javascript>var gitalk=new Gitalk({id:'2021-09-19 15:47:09 \u002b0800 \u002b0800',title:'计算机网络缺失的一课 Http',clientID:'878b112800a679d0f89d',clientSecret:'f3042138c809f6ab3311d584d341299b188b7844',repo:'lawrshen.github.io',owner:'lawrshen',admin:['lawrshen'],body:decodeURI(location.href)});gitalk.render('gitalk-container')</script>
+<noscript>Please enable JavaScript to view the <a href=https://github.com/gitalk/gitalk>comments powered by gitalk.</a></noscript>
+</div>
+</main>
+<footer id=footer class=footer>
+<div class=social-links>
+<a href=mailto:lawrshen@qq.com class="iconfont icon-email" title=email></a>
+<a href=https://github.com/lawrshen class="iconfont icon-github" title=github></a>
+<a href=https://lawrshen.github.io/index.xml type=application/rss+xml class="iconfont icon-rss" title=rss></a>
+</div>
+<div class=copyright>
+<span class=power-by>
+Powered by <a class=hexo-link href=https://gohugo.io>Hugo</a>
+</span>
+<span class=division>|</span>
+<span class=theme-info>
+Theme -
+<a class=theme-link href=https://github.com/olOwOlo/hugo-theme-even>Even</a>
+</span>
+<div class=busuanzi-footer>
+<span id=busuanzi_container_site_pv> site pv: <span id=busuanzi_value_site_pv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+<span class=division>|</span>
+<span id=busuanzi_container_site_uv> site uv: <span id=busuanzi_value_site_uv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+</div>
+<span class=copyright-year>
+&copy;
+2021 -
+2022<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</span>
+</div>
+</footer>
+<div class=back-to-top id=back-to-top>
+<i class="iconfont icon-up"></i>
+</div>
+</div>
+<script src=https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.min.js integrity="sha256-jwCP0NAdCBloaIWTWHmW4i3snUNMHUNO+jr9rYd2iOI=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.locales.min.js integrity="sha256-ZwofwC1Lf/faQCzN7nZtfijVV6hSwxjQMwXL4gn9qU8=" crossorigin=anonymous></script>
+<script>var languageCode="en".replace(/-/g,'_').replace(/_(.*)/,function(b,a){return b.replace(a,a.toUpperCase())});timeago().render(document.querySelectorAll('.timeago'),languageCode),timeago.cancel()</script>
+<script type=text/javascript src=/js/main.min.c99b103c33d1539acf3025e1913697534542c4a5aa5af0ccc20475ed2863603b.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga('create','G-FQBGCF2JH0','auto'),ga('set','anonymizeIp',!0),ga('send','pageview'))</script>
+<script async src=https://www.google-analytics.com/analytics.js></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>pthread on Don`t Panic :-)</title><link>https://lawrshen.github.io/tags/pthread/</link><description>Recent content in pthread on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 17 Sep 2022 10:16:50 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/tags/pthread/index.xml" rel="self" type="application/rss+xml"/><item><title>多线程若干问</title><link>https://lawrshen.github.io/post/pthread-faq/</link><pubDate>Sat, 17 Sep 2022 10:16:50 +0800</pubDate><guid>https://lawrshen.github.io/post/pthread-faq/</guid><description>&lt;blockquote>
+&lt;p>顺序性&lt;/p>
+&lt;p>原子性&lt;/p>
+&lt;p>可见性
+当一个线程修改了某一个全局共享变量的数值，其他线程是否能够知道这个修改。&lt;/p>
+&lt;/blockquote></description></item></channel></rss>

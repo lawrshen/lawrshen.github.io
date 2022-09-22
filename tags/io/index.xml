@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>IO on Don`t Panic :-)</title><link>https://lawrshen.github.io/tags/io/</link><description>Recent content in IO on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 17 Sep 2022 11:45:34 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/tags/io/index.xml" rel="self" type="application/rss+xml"/><item><title>IO 模型浅谈</title><link>https://lawrshen.github.io/post/io-models/</link><pubDate>Sat, 17 Sep 2022 11:45:34 +0800</pubDate><guid>https://lawrshen.github.io/post/io-models/</guid><description>&lt;p>网络 IO 的发展过程是随着 linux 的内核演变而变化，因此网络 IO 大致可以分为如下几个阶段：&lt;/p>
+&lt;ol>
+&lt;li>阻塞 IO(BIO)&lt;/li>
+&lt;li>非阻塞 IO(NIO)&lt;/li>
+&lt;li>IO 多路复用第一版(select/poll)&lt;/li>
+&lt;li>IO 多路复用第二版(epoll)&lt;/li>
+&lt;li>异步 IO(AIO)&lt;/li>
+&lt;/ol>
+&lt;p>那么，BIO、NIO、AIO 有什么区别呢?&lt;/p></description></item></channel></rss>

@@ -1,0 +1,1873 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 17 Sep 2022 11:45:34 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>IO 模型浅谈</title><link>https://lawrshen.github.io/post/io-models/</link><pubDate>Sat, 17 Sep 2022 11:45:34 +0800</pubDate><guid>https://lawrshen.github.io/post/io-models/</guid><description>&lt;p>网络 IO 的发展过程是随着 linux 的内核演变而变化，因此网络 IO 大致可以分为如下几个阶段：&lt;/p>
+&lt;ol>
+&lt;li>阻塞 IO(BIO)&lt;/li>
+&lt;li>非阻塞 IO(NIO)&lt;/li>
+&lt;li>IO 多路复用第一版(select/poll)&lt;/li>
+&lt;li>IO 多路复用第二版(epoll)&lt;/li>
+&lt;li>异步 IO(AIO)&lt;/li>
+&lt;/ol>
+&lt;p>那么，BIO、NIO、AIO 有什么区别呢?&lt;/p>
+&lt;h1 id="io-模型">IO 模型&lt;/h1>
+&lt;p>一个输入操作通常包括两个阶段:&lt;/p>
+&lt;ul>
+&lt;li>等待数据准备好&lt;/li>
+&lt;li>从内核向进程复制数据&lt;/li>
+&lt;/ul>
+&lt;p>对于一个套接字上的输入操作，第一步通常涉及等待数据从网络中到达。当所等待分组到达时，它被复制到内核中的某个缓冲区。第二步就是把数据从内核缓冲区复制到应用进程缓冲区。&lt;/p>
+&lt;p>阻塞非阻塞，同步异步，都是围绕这两个阶段所做的不同处理。&lt;/p>
+&lt;h1 id="阻塞-io-和非阻塞-io-的区别">阻塞 IO 和非阻塞 IO 的区别&lt;/h1>
+&lt;p>因为IO操作要分两步走，所以把&lt;strong>从硬件到内核态&lt;/strong>这一阶段，&lt;strong>是否发生阻塞等待&lt;/strong>，可以将网络分为阻塞 IO和非阻塞 IO。&lt;/p>
+&lt;p>举个例子：&lt;/p>
+&lt;p>BIO 在连接的IO读取上，&lt;strong>无论是否真的有读/写发生&lt;/strong>，都需要&lt;strong>阻塞&lt;/strong>住当前的线程，对于基于BIO实现的Server端，通常的实现方法都是&lt;strong>用一个线程去accept连接&lt;/strong>，当连接建立后，将这个连接的IO读写放到一个专门的处理线程，所以当建立100个连接时，通常会产生1个Accept线程 + 100个处理线程。&lt;/p>
+&lt;p>&lt;code>NIO&lt;/code> 比起 &lt;code>BIO&lt;/code> 有了事件机制。&lt;/p>
+&lt;p>NIO通过事件来触发，这样就可以实现&lt;strong>在有需要读/写的时候才处理&lt;/strong>，不用阻塞当前线程。&lt;/p>
+&lt;p>NIO在处理IO的读写时，当从网卡缓冲区读或写入缓冲区时，这个过程是串行的，所以用太多线程处理IO事件其实也没什么意义，连接事件由于通常处理比较快，用1个线程去处理就可以。&lt;/p>
+&lt;p>IO事件呢，通常会采用cpu core数+1或cpu core数 * 2，这个的原因是IO线程通常除了从缓冲区读写外，还会做些比较轻量的例如解析协议头等，这些是可以并发的。&lt;/p>
+&lt;p>为什么不只用1个线程处理，是因为当并发的IO事件非常多时，1个线程的效率不足以发挥出多core的CPU的能力，从而导致这个地方成为瓶颈。&lt;/p>
+&lt;p>这种在分布式cache类型的场景里会比较明显，按照这个，也就更容易理解为什么在基于Netty等写程序时，不要在IO线程里直接做过多动作，而应该把这些动作转移到另外的线程池里去处理，就是为了能保持好IO事件能被高效处理。&lt;/p>
+&lt;p>从上面可以看出，对于大多数需要建立&lt;strong>大量连接&lt;/strong>，但&lt;strong>并发读写并不会同时&lt;/strong>的场景而言，NIO的优势是非常明显的。&lt;/p>
+&lt;h1 id="同步-io-和异步-io-的区别">同步 IO 和异步 IO 的区别&lt;/h1>
+&lt;p>从前面我们知道了，数据的传递需要两个阶段，在此处只要任何一个阶段会阻塞用户请求，都将其称为同步 IO，两个阶段都不阻塞，则称为异步 IO。&lt;/p>
+&lt;p>在目前所有的操作系统中，linux 中的 epoll、mac 的 kqueue 都属于同步 IO，因为其在第二阶段(数据&lt;strong>从内核态到用户态&lt;/strong>)都会发生拷贝阻塞。 而只有 windows 中的 IOCP 才真正属于异步 IO，即 AIO。&lt;/p>
+&lt;h1 id="总结">总结&lt;/h1>
+&lt;ul>
+&lt;li>BIO：同步阻塞式IO，服务器实现模式为&lt;strong>一个连接一个线程&lt;/strong>，即客户端有连接请求时服务器端就需要启动一个线程进行处理，如果这个连接不做任何事情会造成不必要的线程开销，当然可以通过线程池机制改善。&lt;/li>
+&lt;li>NIO：同步非阻塞式IO，服务器实现模式为&lt;strong>一个请求一个线程&lt;/strong>，即客户端发送的连接请求都会注册到多路复用器上，多路复用器轮询到连接有I/O请求时才启动一个线程进行处理。 &lt;/li>
+&lt;li>AIO(NIO.2)：异步非阻塞式IO，服务器实现模式为&lt;strong>一个有效请求一个线程&lt;/strong>，客户端的I/O请求都是由OS先完成了再通知服务器应用去启动线程进行处理。&lt;/li>
+&lt;/ul></description></item><item><title>多线程若干问</title><link>https://lawrshen.github.io/post/pthread-faq/</link><pubDate>Sat, 17 Sep 2022 10:16:50 +0800</pubDate><guid>https://lawrshen.github.io/post/pthread-faq/</guid><description>&lt;blockquote>
+&lt;p>顺序性&lt;/p>
+&lt;p>原子性&lt;/p>
+&lt;p>可见性
+当一个线程修改了某一个全局共享变量的数值，其他线程是否能够知道这个修改。&lt;/p>
+&lt;/blockquote>
+&lt;h1 id="i-问题">&lt;code>i++&lt;/code> 问题&lt;/h1>
+&lt;blockquote>
+&lt;p>i 初始值为 0，两个线程同时执行 &lt;code>i++&lt;/code>，各执行 100 次后 i 的最终结果是多少？&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;code>i++&lt;/code> &lt;strong>不是原子操作&lt;/strong>，也就是说，它不是单独一条指令，而是3条指令：&lt;/p>
+&lt;ol>
+&lt;li>&lt;code>R[eax] = i&lt;/code> : 从内存中把i的值取出来放到CPU的&lt;strong>寄存器&lt;/strong>中&lt;/li>
+&lt;li>&lt;code>R[eax]+= 1&lt;/code> : CPU&lt;strong>寄存器的&lt;/strong>值+1&lt;/li>
+&lt;li>&lt;code>i = R[eax]&lt;/code> : 把CPU寄存器的值&lt;strong>写回内存&lt;/strong>&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>多核CPU最小值为2，最大值200&lt;/strong>&lt;/p>
+&lt;p>&lt;code>i++&lt;/code>是由3条指令构成的运算操作，两个线程在i变量上共计需要执行100（次循环）*3（条指令）*2（个线程）=600条指令，这600条指令在某种排列下会导致最终i的值仅为2。&lt;/p>
+&lt;p>假设两个线程的执行步骤如下： &lt;/p>
+&lt;ol>
+&lt;li>线程A执行第一次i++，取出内存中的i，值为0，存放到寄存器后执行加1，此时CPU1的寄存器中值为1，内存中为0；&lt;/li>
+&lt;li>线程B执行第一次i++，取出内存中的i，值为0，存放到寄存器后执行加1，此时CPU2的寄存器中值为1，内存中为0；&lt;/li>
+&lt;li>线程A继续执行完成第99次i++，并把值放回内存，此时CPU1中寄存器的值为99，内存中为99；&lt;/li>
+&lt;li>线程B继续执行第一次i++，将其值放回内存，此时CPU2中的寄存器值为1，内存中为1；&lt;/li>
+&lt;li>线程A执行第100次i++，将内存中的值取回CPU1的寄存器，并执行加1，此时CPU1的寄存器中的值为2，内存中为1；&lt;/li>
+&lt;li>线程B执行完所有操作，并将其放回内存，此时CPU2的寄存器值为100，内存中为100； &lt;/li>
+&lt;li>线程A执行100次操作的最后一部分，将CPU1中的寄存器值放回内存，内存中值为2；&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>单核CPU最小值为100，最大值200&lt;/strong>&lt;/p>
+&lt;p>两个线程分别记为线程1和线程2，&lt;code>i++&lt;/code>相当于取出i的值，加1，再放回去&lt;/p>
+&lt;p>第一种极端情况：每次线程一取出i的值后CPU时间切换到线程二，线程二也取出i的值，取到的值和线程一相等，线程二给i加一后放回去，线程一也将i加一后放回去，放回去的值也相等，相当于两个线程都执行一次i++操作，i的值只增加1，这样操作100次i的值为100&lt;/p>
+&lt;p>第二种极端情况：线程一和线程二间隔操作，即线程一对&lt;code>i++&lt;/code>操作完成，把已经加一的数据放回去之后线程二再操作，轮流进行，最后每个线程都对i加了100次，i 的值为200&lt;/p></description></item><item><title>从队头阻塞看 HTTP 变迁史</title><link>https://lawrshen.github.io/post/hol/</link><pubDate>Sat, 30 Jul 2022 11:14:29 +0800</pubDate><guid>https://lawrshen.github.io/post/hol/</guid><description>&lt;p>《 &lt;a href="https://zhuanlan.zhihu.com/p/330300133">关于队头阻塞（Head-of-Line blocking），看这一篇就足够了&lt;/a>》这篇文章对队头阻塞已经讲解的很清楚了，本文从常问问题角度，梳理一下队头阻塞的问题和解决方案。&lt;/p>
+&lt;h1 id="什么是队头阻塞head-of-line-blocking">什么是队头阻塞（Head-of-Line blocking）&lt;/h1>
+&lt;p>简单直接的定义是：&lt;/p>
+&lt;blockquote>
+&lt;p>单个（慢）对象阻止其他/后续的对象前进&lt;/p>
+&lt;/blockquote>
+&lt;p>现实生活中一个很好的比喻就是只有一个收银台的杂货店。一个顾客买了很多东西，最后会耽误排在他后面的人，因为顾客是以先进先出（First In, First Out）的方式服务的。另一个例子是只有单行道的高速公路。在这条路上发生一起车祸，可能会使整个通道堵塞很长一段时间。因此，即使是在“头部（head）”一个单一的问题可以“阻塞（block）”整条“线（line）”。&lt;/p>
+&lt;p>这个概念一直是最难解决的 Web 性能问题之一。&lt;/p>
+&lt;h1 id="http11-为什么有队头阻塞">HTTP/1.1 为什么有队头阻塞&lt;/h1>
+&lt;blockquote>
+&lt;p>回顾历史, HTTP/1.1 来自一个更简单的时代，协议内容以文本为基础并且在网络上可读。&lt;/p>
+&lt;/blockquote>
+&lt;p>因为 HTML 中没有办法判断文件大小，所以可能存在大文件传输很久的队头阻塞，解决方法通常是采取多路复用（multiplexing）技术。&lt;/p>
+&lt;p>但是 HTTP/1.1 是一个&lt;strong>纯文本协议&lt;/strong>，它只在有效荷载（payload）的前面附加头（headers）。它不会进一步区分单个（大块）资源与其他资源。所以它&lt;strong>无法将复用的资源区分开来&lt;/strong>，进而无法实现多路复用。&lt;/p>
+&lt;p>这是 HTTP/1.1 协议设计方式的一个基础限制。如果只有一个 HTTP/1.1 连接，那么在切换到发送新资源之前，必须完整地传输资源响应。如果前面的资源创建缓慢（例如，从数据库查询动态生成的index.html）或者，如上所述，如果前面的资源很大。这些问题可能会引起队头阻塞问题。&lt;/p>
+&lt;blockquote>
+&lt;p>目前 HTTP/1.1 会采用打开多个&lt;strong>并行 TCP 连接&lt;/strong>的方法来解决队头阻塞问题。实践上看，类似于在多个域名上“分片”（sharding）资源的实践(img.mysite.com, static.mysite.com, 等）。这是可行的，但是开学会比较大，对于HTTPS来说还有 TLS 的开销。&lt;/p>
+&lt;/blockquote>
+&lt;p>总结：&lt;/p>
+&lt;p>这个问题不能用 HTTP/1.1 解决，而且并行 TCP 连接的补丁解决方案也不能随着时间的推移扩展得太好，很明显需要一种全新的方法，这就是后来的 HTTP/2。&lt;/p>
+&lt;h1 id="http2-有什么改进">HTTP/2 有什么改进&lt;/h1>
+&lt;p>针对上述提到的 HTTP/1.1 协议无法解决 一个大的或慢的响应会延迟后面的其他响应 的队头阻塞问题，HTTP/2 希望能够正确地复用资源块（resource chunks）。&lt;/p>
+&lt;p>为了分辨一个块属于哪个资源，或者它在哪里结束，另一个块从哪里开始。HTTP/2 非常优雅地解决了这一问题，它在资源块之前添加了帧（frames）。&lt;/p>
+&lt;p>HTTP/2 对每个块（chunks）添加了数据帧（DATA frame）。主要包含两个关键的元数据：1. 资源归属 2. 块的大小&lt;/p>
+&lt;p>协议还有许多其他帧类型，例如头部帧（HEADERS frame）。头部帧也使用（stream id）来指出这些头（headers）属于哪个响应，可以将头（headers）和载荷分离。&lt;/p>
+&lt;p>HTTP/2 之后要做的是任何调度不同资源来利用有限的带宽。不同优先级的调度方案对web性能也有很大影响。&lt;/p>
+&lt;h1 id="http2-为什么有队头阻塞">HTTP/2 为什么有队头阻塞&lt;/h1>
+&lt;p>HTTP/2 已经解决了 HTTP 级别的队头阻塞，但是在网络模型中，TCP也会引发队头阻塞。&lt;/p>
+&lt;p>HTTP/2 与 TCP 之间的透视图是不匹配的：HTTP/2 可以看到多个独立的资源字节流，而 TCP 只看到一个不透明的字节流。&lt;/p>
+&lt;p>如果一个 TCP 包丢失，所有后续的包都需要等待它的重传，即使它们包含来自不同流的无关联数据，HTTP/2也不能收包。TCP 具有传输层队头阻塞。&lt;/p>
+&lt;p>但是 TCP 队头阻塞总的来说还是少见的，更多是突发的连续几个包丢失，可能是由于网络路径中的路由器内存缓冲区暂时溢出引起的。&lt;/p>
+&lt;h1 id="http3-有什么改进">HTTP/3 有什么改进&lt;/h1>
+&lt;p>TCP本身设计是难以改变的，所以 HTTP/3 将底层传输协议从 TCP 改为基于 UDP 的 QUIC。&lt;/p>
+&lt;p>QUIC 可以被看作是一个 TCP 2.0。它包括 TCP 的所有特性（可靠性、拥塞控制、流量控制、排序等）的最佳版本，以及更多其他特性。QUIC还完全集成了TLS，并且不允许未加密的连接。&lt;/p>
+&lt;p>流id（stream id）以前在 HTTP/2 的数据帧（DATA frame）中，现在被下移到传输层的 QUIC 流帧（STREAM frame）中。&lt;/p>
+&lt;p>QUIC 解决了之前 TCP 的队头阻塞问题。QUIC 在单个资源流中保留了顺序，但不再跨单个流（individual streams）进行排序。&lt;/p>
+&lt;h1 id="http3-为什么有队头阻塞">HTTP/3 为什么有队头阻塞&lt;/h1>
+&lt;p>即使在QUIC中，我们仍然有一种队头阻塞的形式：如果在&lt;strong>单个流&lt;/strong>中有一个&lt;strong>字节间隙&lt;/strong>，那么流的后面部分仍然会被阻塞，直到这个间隙被填满。&lt;/p>
+&lt;p>QUIC 的队头阻塞移除只有在多个资源流同时活动时才有效。这样，如果其中一个流上有包丢失，其他流仍然可以继续。&lt;/p>
+&lt;h1 id="http3-的性能思考">HTTP/3 的性能思考&lt;/h1>
+&lt;p>对于最佳性能，我们有两个相互冲突的性能优化建议：&lt;/p>
+&lt;ol>
+&lt;li>从 QUIC 的队头阻塞移除中获利：多路复用发送资源（12121212）&lt;/li>
+&lt;li>为了确保浏览器能够尽快处理核心资源：按顺序发送资源（11112222）&lt;/li>
+&lt;/ol>
+&lt;p>由于丢包问题的不可预测，总的来看多路复用对性能的提升有待考量。&lt;/p>
+&lt;h1 id="补充">补充&lt;/h1>
+&lt;h2 id="http11-的管道解决了队头阻塞吗">HTTP/1.1 的管道解决了队头阻塞吗&lt;/h2>
+&lt;p>HTTP/1.1 的管道是指浏览器不必等待任何响应数据，现在可以背靠背地发送请求。这样，我们在连接过程中节省了一些 RTTs，使得加载过程更快。&lt;/p>
+&lt;p>管道解决了请求的队头阻塞，而不是响应的队头阻塞。可悲的是，响应队头阻塞是导致 Web 性能问题最多的原因。&lt;/p>
+&lt;h2 id="tls-的队头阻塞">TLS 的队头阻塞&lt;/h2>
+&lt;p>TLS 只能对整个记录进行解密，而TLS记录可能分散在几个TCP包上，任何一个的的丢包可能会引发相应的队头阻塞。&lt;/p>
+&lt;p>所以 QUIC 集成了 TLS，它不直接使用 TLS 记录，以每个包为基础加密数据。由于 TLS 加密比较复杂，QUIC 在当前实现中仍然会比 TCP 慢。&lt;/p>
+&lt;h2 id="拥塞控制">拥塞控制&lt;/h2>
+&lt;p>拥塞控制器的主要工作是确保网络不会同时被过多的数据过载。&lt;/p>
+&lt;p>而拥塞控制机制对每个 TCP（和 QUIC）连接都是独立的！这反过来也会影响到 HTTP层 的 Web 性能。&lt;/p>
+&lt;p>HTTP/1.1同时开6个 TCP 的连接方式有利有弊，一方面每个连接单独根据丢包判断网络拥塞，另一方面6个同时增加会导致更快的进入网络拥塞。&lt;/p>
+&lt;h2 id="多路复用的意义">多路复用的意义&lt;/h2>
+&lt;p>HTTP/2 甚至 HTTP/3的拓展在于，多路复用是 HTTP/1.1 没有的主要特性之一，其意义在于：&lt;/p>
+&lt;ol>
+&lt;li>一些可以增量处理/呈现的文件确实从多路复用中获益&lt;/li>
+&lt;li>如果其中一个文件比其他文件小得多，那么它可能会很有用，因为它将更早地下载，而不会对其他文件造成太多的延迟。&lt;/li>
+&lt;li>多路复用允许&lt;strong>改变响应的顺序&lt;/strong>，并为高优先级的响应&lt;strong>中断&lt;/strong>低优先级的响应。&lt;/li>
+&lt;/ol>
+&lt;p>因此，虽然像 12121212 这样的完全“轮询”多路复用很少是您想要的 Web 性能，但是多路复用在总体上绝对是一个有用的特性。&lt;/p></description></item><item><title>Golang map简介</title><link>https://lawrshen.github.io/post/go-map/</link><pubDate>Sat, 28 May 2022 11:51:32 +0800</pubDate><guid>https://lawrshen.github.io/post/go-map/</guid><description>&lt;p>golang 语言提供了 built-in 的 map 类型，提供 hash table 的功能。完成的特性主要有：增删查改。&lt;/p>
+&lt;h1 id="定义初始化及使用注意">定义初始化及使用注意&lt;/h1>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-golang" data-lang="golang">&lt;span class="kd">map&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="nx">KeyType&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="nx">ValueType&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>KeyType 必须是可比较的类型，可比较类型官方定义的是 boolean、numeric、string、pointer、channel、和 interface types、以及包含这些类型的 structs 或 arrays。不可比较的如 slices、maps 和 functions，用不了 &lt;code>==&lt;/code>。&lt;/p>
+&lt;p>map 类型是引用类型，所以直接声明的变量0值是 nil，它并不指向一个初试化的 map，使用时要注意。&lt;/p>
+&lt;blockquote>
+&lt;p>read nil, got zero. write nil, panic!&lt;/p>
+&lt;/blockquote>
+&lt;p>此外，由于 map 的 key 不存在时，默认为0值，利用这个特性也能做一些判断。&lt;/p>
+&lt;p>遍历 map 的顺序是随机的，如果要俺固定顺序遍历元素，可以考虑放入 slice 中。&lt;/p>
+&lt;h1 id="多线程安全">多线程安全&lt;/h1>
+&lt;p>map 在多线程情况下是不安全的，建议加读写锁 &lt;code>sync.RWMutex&lt;/code> 一起使用。&lt;/p>
+&lt;h1 id="底层实现">底层实现&lt;/h1>
+&lt;p>map = hashMap，本质是 array + list，效率极低：计算 hash 过程，查找过程&lt;/p>
+&lt;p>Hmap 两个 bucket 用于热扩容，不如 Java 8 的 Array + 红黑树高效，平均深度是 6.5&lt;/p>
+&lt;p>Hmap bucketsize 为 buckets 内 node 的数量，上限为 2 ^ B&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-golang" data-lang="golang">&lt;span class="c1">// A header for a Go map.
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="kd">type&lt;/span> &lt;span class="nx">hmap&lt;/span> &lt;span class="kd">struct&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="c1">// Note: the format of the hmap is also encoded in cmd/compile/internal/reflectdata/reflect.go.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// Make sure this stays in sync with the compiler&amp;#39;s definition.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">count&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="c1">// # live cells == size of map. Must be first (used by len() builtin)
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">flags&lt;/span> &lt;span class="kt">uint8&lt;/span>
+&lt;span class="nx">B&lt;/span> &lt;span class="kt">uint8&lt;/span> &lt;span class="c1">// log_2 of # of buckets (can hold up to loadFactor * 2^B items)
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">noverflow&lt;/span> &lt;span class="kt">uint16&lt;/span> &lt;span class="c1">// approximate number of overflow buckets; see incrnoverflow for details
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">hash0&lt;/span> &lt;span class="kt">uint32&lt;/span> &lt;span class="c1">// hash seed
+&lt;/span>&lt;span class="c1">&lt;/span>
+&lt;span class="nx">buckets&lt;/span> &lt;span class="nx">unsafe&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Pointer&lt;/span> &lt;span class="c1">// array of 2^B Buckets. may be nil if count==0.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">oldbuckets&lt;/span> &lt;span class="nx">unsafe&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Pointer&lt;/span> &lt;span class="c1">// previous bucket array of half the size, non-nil only when growing
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">nevacuate&lt;/span> &lt;span class="kt">uintptr&lt;/span> &lt;span class="c1">// progress counter for evacuation (buckets less than this have been evacuated)
+&lt;/span>&lt;span class="c1">&lt;/span>
+&lt;span class="nx">extra&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">mapextra&lt;/span> &lt;span class="c1">// optional fields
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="c1">// A bucket for a Go map.
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="kd">type&lt;/span> &lt;span class="nx">bmap&lt;/span> &lt;span class="kd">struct&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="c1">// tophash generally contains the top byte of the hash value
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// for each key in this bucket. If tophash[0] &amp;lt; minTopHash,
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// tophash[0] is a bucket evacuation state instead.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="nx">tophash&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="nx">bucketCnt&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="kt">uint8&lt;/span>
+&lt;span class="c1">// Followed by bucketCnt keys and then bucketCnt elems.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// NOTE: packing all the keys together and then all the elems together makes the
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// code a bit more complicated than alternating key/elem/key/elem/... but it allows
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// us to eliminate padding which would be needed for, e.g., map[int64]int8.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// Followed by an overflow pointer.
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>每个bucket中存放最多8个key/value对, 如果多于8个，那么会申请一个新的bucket，并将它与之前的bucket链起来。&lt;/p>
+&lt;p>将hash值的低位当作Hmap结构体中buckets数组的index，找到key所在的bucket。&lt;/p>
+&lt;p>将hash的高8位存储在了bucket的tophash中，先比对高 8 bit，再比对 key 是否相等。&lt;/p>
+&lt;p>内存布局如果是 key1/value1/key2/value2，设想如果是这样的一个 &lt;code>map[int64]int8&lt;/code>，考虑到字节对齐，会浪费很多存储空间。&lt;/p>
+&lt;p>&lt;img src="../../source/go-hmap.jpg" alt="go-hmap">&lt;/p>
+&lt;h1 id="参考资料">参考资料&lt;/h1>
+&lt;p>&lt;a href="https://go.dev/blog/maps">https://go.dev/blog/maps&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://github.com/golang/go/blob/master/src/runtime/map.go">https://github.com/golang/go/blob/master/src/runtime/map.go&lt;/a>&lt;/p></description></item><item><title>分布式唯一 Id</title><link>https://lawrshen.github.io/post/id/</link><pubDate>Thu, 26 May 2022 17:55:06 +0800</pubDate><guid>https://lawrshen.github.io/post/id/</guid><description>&lt;h1 id="uuid">UUID&lt;/h1>
+&lt;p>universally unique identifier，统一唯一标识符，是一个128位（16字节）的数字，由算法生成，算法可以是任意的，但是算法的种类不能太多，否则就不可读。&lt;/p>
+&lt;p>缺点：&lt;/p>
+&lt;ol>
+&lt;li>ID太长，占用空间大&lt;/li>
+&lt;li>索引效率低&lt;/li>
+&lt;li>不能保证自增&lt;/li>
+&lt;/ol>
+&lt;h1 id="snowflake">snowflake&lt;/h1>
+&lt;p>雪花算法，64位，结合时间戳和机器编号，组成唯一的ID。1bit占用位0+41bit毫秒数+10bit机器id+12bit自增序列号。&lt;/p>
+&lt;p>优点：&lt;/p>
+&lt;ol>
+&lt;li>趋势递增，不依赖数据库等第三方系统&lt;/li>
+&lt;li>以服务方式部署，稳定性高&lt;/li>
+&lt;li>根据业务分配bit，比较灵活&lt;/li>
+&lt;/ol>
+&lt;p>缺点：&lt;/p>
+&lt;ol>
+&lt;li>强依赖机器时间&lt;/li>
+&lt;li>不是严格递增，可能存在机器时间不同步&lt;/li>
+&lt;li>需要workerid唯一&lt;/li>
+&lt;/ol>
+&lt;p>受时间回拨的根本原因在于高位采用时间戳的二进制值。&lt;/p>
+&lt;h1 id="redis生成id">redis生成id&lt;/h1>
+&lt;p>redis的原子操作 &lt;code>INCR&lt;/code> 或者 &lt;code>INCRBY&lt;/code> 的自增原子命令&lt;/p>
+&lt;p>优点：&lt;/p>
+&lt;ol>
+&lt;li>单线程，趋势递增&lt;/li>
+&lt;li>性能好&lt;/li>
+&lt;/ol>
+&lt;p>缺点：&lt;/p>
+&lt;ol>
+&lt;li>迁移 redis 难度大&lt;/li>
+&lt;li>重启丢数据&lt;/li>
+&lt;/ol>
+&lt;h1 id="美团-leaf">美团 leaf&lt;/h1>
+&lt;h2 id="leaf-segment">leaf segment&lt;/h2>
+&lt;p>依赖分布式数据库自增 ID，一次取一批（segment）防止对数据库的频繁查询同时在ID耗尽前提前异步的取一批，提高效率。&lt;/p>
+&lt;h2 id="leaf-snowflake">leaf snowflake&lt;/h2>
+&lt;p>改进了 workerid，引入 zookeeper 持久顺序节点的特性。&lt;/p></description></item><item><title>Epoll 简介</title><link>https://lawrshen.github.io/post/epoll/</link><pubDate>Thu, 26 May 2022 14:54:40 +0800</pubDate><guid>https://lawrshen.github.io/post/epoll/</guid><description>&lt;p>epoll 可以说是和 poll 非常相似的一种 I/O 多路复用技术，epoll 通过监控注册的多个描述字，来进行 I/O 事件的分发处理。不同于 poll 的是，epoll 不仅提供了默认的 level-triggered（条件触发）机制，还提供了性能更为强劲的 edge-triggered（边缘触发）机制。&lt;/p>
+&lt;h1 id="工作流程">工作流程&lt;/h1>
+&lt;ol>
+&lt;li>用户进程调用epoll_create;&lt;/li>
+&lt;li>内核创建readyList，红黑树;&lt;/li>
+&lt;li>用户进程调用epoll_ctrl，传递监控的句柄(如Socket)，以及在上面关注的事件;&lt;/li>
+&lt;li>内核将句柄插入红黑树;&lt;/li>
+&lt;li>内核的中断处理程序注册一个回调，如果红黑树中某个句柄的中断到了，把它对应的事件放到ReadyList。&lt;/li>
+&lt;/ol>
+&lt;p>&amp;mdash; 另一个流程 &amp;mdash;&lt;/p>
+&lt;ol>
+&lt;li>用户进程调用epoll_wait&lt;/li>
+&lt;li>内核从ReadyList返回可回调的事件。&lt;/li>
+&lt;/ol>
+&lt;h1 id="epoll用法">epoll用法&lt;/h1>
+&lt;p>使用 epoll 进行网络程序的编写，需要三个步骤，分别是 epoll_create，epoll_ctl 和 epoll_wait。&lt;/p>
+&lt;h2 id="epoll_create">epoll_create&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C" data-lang="C">&lt;span class="kt">int&lt;/span> &lt;span class="nf">epoll_create&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">size&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="nf">epoll_create1&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">flags&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="c1">// 返回值: 若成功返回一个大于0的值，表示epoll实例；若返回-1表示出错
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>epoll_create() 方法创建了一个 epoll 实例，从 Linux 2.6.8 开始，参数 size 被自动忽略，但是该值仍需要一个大于 0 的整数。这个 epoll 实例被用来调用 epoll_ctl 和 epoll_wait，如果这个 epoll 实例不再需要，比如服务器正常关机，需要调用 close() 方法释放 epoll 实例，这样系统内核可以回收 epoll 实例所分配使用的内核资源。&lt;/p>
+&lt;p>参数 size，在一开始的 epoll_create 实现中，是用来告知内核期望监控的文件描述字大小，然后内核使用这部分的信息来初始化内核数据结构。在新的实现中，这个参数不再被需要，因为内核可以动态分配需要的内核数据结构。我们只需要注意，每次将 size 设置成一个大于 0 的整数就可以了。&lt;/p>
+&lt;p>epoll_create1() 的用法和 epoll_create() 基本一致，如果 epoll_create1() 的输入 flags 为 0，则和 epoll_create() 一样，内核自动忽略。可以增加如 EPOLL_CLOEXEC 的额外选项。&lt;/p>
+&lt;h2 id="epoll_ctl">epoll_ctl&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C" data-lang="C">&lt;span class="kt">int&lt;/span> &lt;span class="nf">epoll_ctl&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">epfd&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">op&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">fd&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="k">struct&lt;/span> &lt;span class="n">epoll_event&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">event&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="c1">// 返回值: 若成功返回0；若返回-1表示出错
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>在创建完 epoll 实例之后，可以通过调用 epoll_ctl 往这个 epoll 实例增加或删除监控的事件。&lt;/p>
+&lt;ul>
+&lt;li>第一个参数 epfd 是刚刚调用 epoll_create 创建的 epoll 实例描述字，可以简单理解成是 epoll 句柄。&lt;/li>
+&lt;li>第二个参数表示增加还是删除一个监控事件，它有三个选项可供选择：
+&lt;ul>
+&lt;li>EPOLL_CTL_ADD： 向 epoll 实例注册文件描述符对应的事件。&lt;/li>
+&lt;li>EPOLL_CTL_DEL：向 epoll 实例删除文件描述符对应的事件。&lt;/li>
+&lt;li>EPOLL_CTL_MOD： 修改文件描述符对应的事件。&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>第三个参数是注册的事件的文件描述符，比如一个监听套接字。&lt;/li>
+&lt;li>第四个参数表示的是注册的事件类型，并且可以在这个结构体里设置用户需要的数据，其中最为常见的是使用联合结构里的 fd 字段，表示事件所对应的文件描述符。&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C" data-lang="C">&lt;span class="k">typedef&lt;/span> &lt;span class="k">union&lt;/span> &lt;span class="n">epoll_data&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">ptr&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">fd&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kt">uint32_t&lt;/span> &lt;span class="n">u32&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kt">uint64_t&lt;/span> &lt;span class="n">u64&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="n">epoll_data_t&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">struct&lt;/span> &lt;span class="n">epoll_event&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kt">uint32_t&lt;/span> &lt;span class="n">events&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="cm">/* Epoll events */&lt;/span>
+&lt;span class="n">epoll_data_t&lt;/span> &lt;span class="n">data&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="cm">/* User data variable */&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这里 epoll 使用了和 poll 同样的 mask 数据类型机制，重要的几种事件类型有：&lt;/p>
+&lt;ul>
+&lt;li>EPOLLIN：表示对应的文件描述字可以读；&lt;/li>
+&lt;li>EPOLLOUT：表示对应的文件描述字可以写；&lt;/li>
+&lt;li>EPOLLRDHUP：表示套接字的一端已经关闭，或者半关闭；&lt;/li>
+&lt;li>EPOLLHUP：表示对应的文件描述字被挂起；&lt;/li>
+&lt;li>EPOLLET：设置为 edge-triggered，默认为 level-triggered。&lt;/li>
+&lt;/ul>
+&lt;h2 id="epoll_wait">epoll_wait&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C" data-lang="C">&lt;span class="kt">int&lt;/span> &lt;span class="nf">epoll_wait&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">epfd&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="k">struct&lt;/span> &lt;span class="n">epoll_event&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">events&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">maxevents&lt;/span>&lt;span class="err">，&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">timeout&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="c1">// 返回值: 成功返回的是一个大于0的数，表示事件的个数；返回0表示的是超时时间到；若出错返回-1。
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>epoll_wait() 函数类似之前的 poll 和 select 函数，调用者进程被挂起，在等待内核 I/O 事件的分发。&lt;/p>
+&lt;p>第一个参数是 epoll 实例描述字，也就是 epoll 句柄。&lt;/p>
+&lt;p>第二个参数返回给用户空间需要处理的 I/O 事件，这是一个数组，数组的大小由 epoll_wait 的返回值决定，这个数组的每个元素都是一个需要待处理的 I/O 事件，其中 events 表示具体的事件类型，事件类型取值和 epoll_ctl 可设置的值一样，这个 epoll_event 结构体里的 data 值就是在 epoll_ctl 那里设置的 data，也就是用户空间和内核空间调用时需要的数据。&lt;/p>
+&lt;p>第三个参数是一个大于 0 的整数，表示 epoll_wait 可以返回的最大事件值。&lt;/p>
+&lt;h1 id="edge-triggered-vs-level-triggered">edge-triggered VS level-triggered&lt;/h1>
+&lt;p>两者的区别，条件触发（level-triggered）的意思是只要满足事件的条件，比如有数据需要读，就一直不断地把这个事件传递给用户；而边缘触发（edge-triggered）的意思是只有第一次满足条件的时候才触发，之后就不会再传递同样的事件了。一般我们认为，边缘触发的效率比条件触发的效率要高，这一点也是 epoll 的杀手锏之一。&lt;/p>
+&lt;h1 id="epoll-的性能优于-select-和-poll-的原因">epoll 的性能优于 select 和 poll 的原因&lt;/h1>
+&lt;p>第一个方面是事件集合。每次使用 poll 或 select 之前，都需要准备一个感兴趣的事件集合，系统内核拿到事件集合，进行分析并在内核空间构建相应的数据结构来完成对事件集合的注册。而 epoll 则不是这样，epoll 维护了一个全局的事件集合，通过 epoll 句柄，可以操纵这个事件集合，增加、删除或修改这个事件集合里的某个元素。要知道在绝大多数情况下，事件集合的变化没有那么的大，这样操纵系统内核就不需要每次重新扫描事件集合，构建内核空间数据结构。&lt;/p>
+&lt;p>第二个方面是就绪列表。每次在使用 poll 或者 select 之后，应用程序都需要扫描整个感兴趣的事件集合，从中找出真正活动的事件，这个列表如果增长到 10K 以上，每次扫描的时间损耗也是惊人的。事实上，很多情况下扫描完一圈，可能发现只有几个真正活动的事件。而 epoll 则不是这样，epoll 返回的直接就是活动的事件列表，应用程序减少了大量的扫描时间。&lt;/p>
+&lt;p>此外， epoll 还提供了更高级的能力——边缘触发。举一个例子说明一下。如果某个套接字有 100 个字节可以读，边缘触发（edge-triggered）和条件触发（level-triggered）都会产生 read ready notification 事件，如果应用程序只读取了 50 个字节，边缘触发就会陷入等待；而条件触发则会因为还有 50 个字节没有读取完，不断地产生 read ready notification 事件。在条件触发下（level-triggered），如果某个套接字缓冲区可以写，会无限次返回 write ready notification 事件，在这种情况下，如果应用程序没有准备好，不需要发送数据，仍需要解除套接字上的 ready notification 事件，否则 CPU 就直接跪了。&lt;/p>
+&lt;h1 id="为什么用红黑树">为什么用红黑树？&lt;/h1>
+&lt;p>关于为什么要红黑树，考虑到中间观察者最核心的诉求有两个。&lt;/p>
+&lt;p>第一个核心诉求，是让线程可以注册自己关心的消息类型。&lt;/p>
+&lt;p>比如线程对文件描述符 =123 的 Socket 文件读写都感兴趣，会去中间观察者处注册。当 FD=123 的 Socket 发生读写时，中间观察者负责通知线程，这是一个响应式的模型。&lt;/p>
+&lt;p>第二个核心诉求，是当 FD=123 的 Socket 发生变化（读写等）时，能够快速地判断是哪个线程需要知道这个消息&lt;/p>
+&lt;p>所以，中间观察者需要一个快速能插入（注册过程）、查询（通知过程）一个整数的数据结构，这个整数就是 Socket 的文件描述符。综合来看，能够解决这个问题的数据结构中属于是一个Map接口，候选实现:&lt;/p>
+&lt;ul>
+&lt;li>哈希表 O(1)&lt;/li>
+&lt;li>红黑树 O(lgn)&lt;/li>
+&lt;li>跳表 近似O(lgn)&lt;/li>
+&lt;/ul>
+&lt;p>据说老版本的内核和FreeBSD的Kqueue使用的是哈希表。&lt;/p>
+&lt;p>个人理解现在内核使用红黑树的原因:&lt;/p>
+&lt;p>哈希表：空间因素，可伸缩性。&lt;/p>
+&lt;ol>
+&lt;li>频繁增删，哈希表需要预估空间大小， 这个场景下无法做到。间接影响响应时间，假如要resize，原来的数据还得移动。即使用了一致性哈希算法，也难以满足非阻塞的timeout时间限制。(时间不稳定)&lt;/li>
+&lt;li>百万级连接，哈希表有镂空的空间，太浪费内存。&lt;/li>
+&lt;/ol>
+&lt;p>跳表：慢于红黑树，空间也高。&lt;/p>
+&lt;p>红黑树：经验判断，内核的其他地方如防火墙也使用红黑树，实践上看性能最优。&lt;/p></description></item><item><title>简谈TCP的可靠传输</title><link>https://lawrshen.github.io/post/tcp/</link><pubDate>Thu, 19 May 2022 10:40:25 +0800</pubDate><guid>https://lawrshen.github.io/post/tcp/</guid><description>&lt;p>计算机网络领域的经典问题回顾。主要针对 TCP 如何实现可靠传输。&lt;/p>
+&lt;h1 id="tcp-的可靠性">TCP 的可靠性&lt;/h1>
+&lt;p>TCP 协议是面向连接的、可靠的、基于字节流的传输层通信协议，传输的单位是报文段。&lt;/p>
+&lt;p>TCP 的可靠性主要依靠：建立连接的可靠性和传输过程的可靠性（拥塞控制和超时重传）。&lt;/p>
+&lt;ul>
+&lt;li>确认和超时重传&lt;/li>
+&lt;li>数据合理分片和排序&lt;/li>
+&lt;li>流量控制&lt;/li>
+&lt;li>拥塞控制&lt;/li>
+&lt;li>数据校验&lt;/li>
+&lt;/ul>
+&lt;div class="admonition note">&lt;p class="admonition-title">思考&lt;/p>
+&lt;p>TCP协议相对的是IP协议不可靠，原因来自于因特网使用的IP协议是无连接的。那为什么当初不把因特网的传输设计为可靠的？&lt;/p>
+&lt;p>这涉及到谁应当负责数据传输的可靠性问题，是通信网络还是用户主机，计算机网络和电信网的很大区别来自于终端的智能星期。&lt;/p>
+&lt;/div>
+&lt;h2 id="tcp的流量控制">TCP的流量控制&lt;/h2>
+&lt;p>（什么是流量控制，数据在哪里被丢失）&lt;/p>
+&lt;p>TCP连接的每一方都有固定大小的缓冲空间。TCP的接收端只允许另一端发送接收端缓冲区所能接纳的数据，这可以防止较快主机致使较慢主机的缓冲区溢出，这就是流量控制。TCP使用的流量控制协议是可变大小的滑动窗口协议。&lt;/p>
+&lt;p>TCP的收发端都维护一个滑动窗口&lt;/p>
+&lt;p>窗口左端：
+Sender : beginning of &lt;strong>unacknowledged&lt;/strong> data
+Receiver : beginning of &lt;strong>undelivered&lt;/strong> data&lt;/p>
+&lt;p>窗口右端: Left edge + constant
+The constant is only limited by buffer size in the transport layer&lt;/p>
+&lt;p>当发送者收到了一个窗口为0的应答，发送者便停止发送，等待接收者的下一个应答。但是如果这个窗口不为0的应答在传输过程丢失，发送者一直等待下去，而接收者以为发送者已经收到该应答，等待接收新数据，这样双方就相互等待，从而产生死锁。一般用计时器来解决。&lt;/p>
+&lt;p>数据是在终端机器上因为缓冲区溢出而丢失的&lt;/p>
+&lt;h2 id="拥塞控制">拥塞控制&lt;/h2>
+&lt;p>（是为了减少谁的数据压力）；到达的数据序号可能是乱的吗，为什么，数据走的是用一条路径吗&lt;/p>
+&lt;p>IP 网络的拥挤引发了可能的拥塞。可能是乱序的，原因是因为网络中的路由器和路由器之间的路由表不是一个简单的链表，而是一个复杂的网络结构。&lt;/p>
+&lt;h3 id="拥塞控制算法">拥塞控制算法&lt;/h3>
+&lt;h4 id="慢启动">&lt;strong>慢启动&lt;/strong>&lt;/h4>
+&lt;p>发送方维持一个叫做拥塞窗口cwnd（congestion window）的状态变量。拥塞窗口的大小取决于网络的拥塞程度，并且动态地在变化。发送方让自己的发送窗口等于拥塞窗口，另外考虑到接受方的接收能力，发送窗口可能小于拥塞窗口。&lt;/p>
+&lt;p>慢开始算法的思路就是，不要一开始就发送大量的数据，先探测一下网络的拥塞程度，也就是说由小到大逐渐增加拥塞窗口的大小。&lt;/p>
+&lt;p>这里用报文段的个数作为拥塞窗口的大小举例说明慢开始算法，实际的拥塞窗口大小是以字节为单位的。如下图：&lt;/p>
+&lt;p>&lt;img src="../../source/tcp/cwnd-start.png" alt="">&lt;/p>
+&lt;p>从上图可以看到，一个传输轮次所经历的时间其实就是往返时间RTT，而且每经过一个传输轮次（transmission round），拥塞窗口cwnd就加倍。&lt;/p>
+&lt;p>为了防止cwnd增长过大引起网络拥塞，还需设置一个慢开始门限ssthresh状态变量。ssthresh的用法如下：当cwnd&amp;lt;ssthresh时，使用慢开始算法。
+当cwnd&amp;gt;ssthresh时，改用拥塞避免算法。
+当cwnd=ssthresh时，慢开始与拥塞避免算法任意&lt;/p>
+&lt;p>注意，这里的“慢”并不是指cwnd的增长速率慢，而是指在TCP开始发送报文段时先设置cwnd=1，然后逐渐增大，这当然比按照大的cwnd一下子把许多报文段突然注入到网络中要“慢得多”。&lt;/p>
+&lt;h4 id="拥塞避免">&lt;strong>拥塞避免&lt;/strong>&lt;/h4>
+&lt;p>拥塞避免算法让拥塞窗口缓慢增长，即每经过一个往返时间RTT就把发送方的拥塞窗口cwnd加1，而不是加倍。这样拥塞窗口按线性规律缓慢增长。&lt;/p>
+&lt;p>无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞（其根据就是没有按时收到确认，虽然没有收到确认可能是其他原因的分组丢失，但是因为无法判定，所以都当做拥塞来处理），就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半（但不能小于2）。然后把拥塞窗口cwnd重新设置为1，执行慢开始算法。这样做的目的就是要迅速减少主机发送到网络中的分组数，使得发生拥塞的路由器有足够时间把队列中积压的分组处理完毕。&lt;/p>
+&lt;p>整个拥塞控制的流程如下图：&lt;/p>
+&lt;p>&lt;img src="../../source/tcp/cwnd-example.png" alt="">&lt;/p>
+&lt;p>(1）拥塞窗口cwnd初始化为1个报文段，慢开始门限初始值为16
+（2）执行慢开始算法，指数规律增长到第4轮，即cwnd=16=ssthresh，改为执行拥塞避免算法，拥塞窗口按线性规律增长
+（3）假定cwnd=24时，网络出现超时（拥塞），则更新后的ssthresh=12，cwnd重新设置为1，并执行慢开始算法。当cwnd=12=ssthresh时，改为执行拥塞避免算法&lt;/p>
+&lt;p>关于 乘法减小（Multiplicative Decrease）和加法增大（Additive Increase）：&lt;/p>
+&lt;p>“乘法减小”指的是无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞，就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半，并执行慢开始算法，所以当网络频繁出现拥塞时，ssthresh下降的很快，以大大减少注入到网络中的分组数。“加法增大”是指执行拥塞避免算法后，使拥塞窗口缓慢增大，以防止过早出现拥塞。常合起来成为AIMD算法。&lt;/p>
+&lt;p>注意：“拥塞避免”并非完全能够避免了阻塞，而是使网络比较不容易出现拥塞。&lt;/p>
+&lt;h4 id="快重传">&lt;strong>快重传&lt;/strong>&lt;/h4>
+&lt;p>快重传要求接收方在收到一个失序的报文段后就立即发出重复确认（为的是使发送方及早知道有报文段没有到达对方，可提高网络吞吐量约20%）而不要等到自己发送数据时捎带确认。快重传算法规定，发送方只要一连收到三个重复确认就应当立即重传对方尚未收到的报文段，而不必继续等待设置的重传计时器时间到期。如下图：&lt;/p>
+&lt;p>&lt;img src="../../source/tcp/cwnd-fast.png" alt="">&lt;/p>
+&lt;h4 id="快恢复">&lt;strong>快恢复&lt;/strong>&lt;/h4>
+&lt;p>快重传配合使用的还有快恢复算法，有以下两个要点：&lt;/p>
+&lt;p>当发送方连续收到三个重复确认时，就执行“乘法减小”算法，把ssthresh门限减半（为了预防网络发生拥塞）。但是接下去并不执行慢开始算法
+考虑到如果网络出现拥塞的话就不会收到好几个重复的确认，所以发送方现在认为网络可能没有出现拥塞。所以此时不执行慢开始算法，而是将cwnd设置为ssthresh减半后的值，然后执行拥塞避免算法，使cwnd缓慢增大。如下图：TCP Reno版本是目前使用最广泛的版本。&lt;/p>
+&lt;p>&lt;img src="../../source/tcp/cwnd-total.png" alt="">&lt;/p>
+&lt;p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。&lt;/p></description></item><item><title>Mysql 索引</title><link>https://lawrshen.github.io/post/mysql-index/</link><pubDate>Tue, 17 May 2022 21:12:24 +0800</pubDate><guid>https://lawrshen.github.io/post/mysql-index/</guid><description>&lt;p>索引是 MySQL 对查询做的一个优化，把原本杂乱无章的数据，用有序的结构组织起来，让全表扫描变成有章可循的查询。&lt;/p>
+&lt;p>索引的目的是&lt;strong>提高查找效率&lt;/strong>，对数据表的值集合进行了排序，并按照一定数据结构进行了存储。&lt;/p>
+&lt;h1 id="索引的数据结构">索引的数据结构&lt;/h1>
+&lt;p>在 MySQL 中，索引是在&lt;strong>存储引擎层&lt;/strong>实现的，而不同的存储引擎根据其业务场景特点会有不同的实现方式。&lt;/p>
+&lt;p>B+树索引是关系型数据库中最常见的一种索引，也将是本文的主角。可以简单的认为 B+树是一种 N 叉树和有序数组的结合体。&lt;/p>
+&lt;p>&lt;img src="../../source/b+tree.png" alt="b+ tree">&lt;/p>
+&lt;p>B+树的 3 个优点:&lt;/p>
+&lt;ol>
+&lt;li>层级更低，IO 次数更少&lt;/li>
+&lt;li>每次都需要查询到叶子节点，查询性能稳定&lt;/li>
+&lt;li>叶子节点形成有序链表，范围查询方便&lt;/li>
+&lt;/ol>
+&lt;h1 id="innodb-b树索引">Innodb B+树索引&lt;/h1>
+&lt;h2 id="聚集索引和非聚集索引">聚集索引和非聚集索引&lt;/h2>
+&lt;p>聚集索引（clustered index 主键索引）和辅助索引（secondary index 非聚集索引（非主键索引））的不同点在于叶子节点是否是完整行数据。&lt;/p>
+&lt;p>聚集索引就是按照每张&lt;strong>表的主键&lt;/strong>构造一棵 B+树，叶子节点存放的是表的&lt;strong>完整行记录&lt;/strong>。非聚集索引的叶子节点不包含行记录的全部数据。Innodb 存储引擎的&lt;strong>非聚集索引的叶子节点的内容为主键索引值&lt;/strong>。&lt;/p>
+&lt;p>一个经验性的加索引原则是字段的选取范围很广。&lt;/p>
+&lt;p>在对非聚集索引进行查找时，可能会因为选择对象的问题引发&lt;strong>回表&lt;/strong>，即回到主键索引树搜索的过程。避免回表操作是提升 SQL 查询效率的常规思路及重要方法。那么如何避免回表？&lt;/p>
+&lt;ul>
+&lt;li>覆盖索引（covering index）：即&lt;strong>从辅助索引中就可以得到查询的记录&lt;/strong>，而不需要查询聚集索引中的记录。使用覆盖索引的一个好处是辅助索引不包含整行记录的所有信息，故其&lt;strong>大小要远小于聚集索引&lt;/strong>，因此可以&lt;strong>减少大量的IO操作&lt;/strong>。&lt;/li>
+&lt;li>最左匹配：最左匹配可以是字符串索引的最左 N 个字符，也可以是联合索引的最左 M 的字段。避免前后模糊匹配使得 SQL 语句无法使用到索引。&lt;/li>
+&lt;li>索引下推：直接&lt;strong>取辅助索引的值进行过滤&lt;/strong>，即数据库在取出索引的同时，会根据 where 条件直接过滤掉不满足条件的记录，减少回表次数。&lt;/li>
+&lt;li>MRR 优化：Multi-Range Read Optimization，把二级索引结果放入缓冲区排序再去回表，减少磁盘的随机访问，并且将随机访问转化为较为顺序的数据访问。&lt;/li>
+&lt;/ul>
+&lt;h2 id="联合索引">联合索引&lt;/h2>
+&lt;p>对表上多个列建索引。根据多个索引组合排序，查找时对于联合索引的前缀内容查找都能命中索引。&lt;/p>
+&lt;h2 id="唯一索引和主键索引">唯一索引和主键索引&lt;/h2>
+&lt;p>InnoDB对聚簇索引处理如下：&lt;/p>
+&lt;ul>
+&lt;li>如果定义了主键，那么InnoDB会使用主键作为聚簇索引&lt;/li>
+&lt;li>如果没有定义主键，那么会使用第一非空的唯一索引（NOT NULL and UNIQUE INDEX）作为聚簇索引&lt;/li>
+&lt;li>如果既没有主键也找不到合适的非空索引，那么InnoDB会自动生成一个不可见的名为ROW_ID的列名为GEN_CLUST_INDEX的聚簇索引，该列是一个6字节的自增数值，随着插入而自增&lt;/li>
+&lt;/ul>
+&lt;p>很明显，缺少主键的表，InnoDB会内置一列用于聚簇索引来组织数据。而没有建立主键的话就没法通过主键来进行索引，查询的时候都是全表扫描，小数据量没问题，大数据量就会出现性能问题。&lt;/p>
+&lt;h2 id="唯一索引和普通索引">唯一索引和普通索引&lt;/h2>
+&lt;ul>
+&lt;li>普通索引查找到满足条件的第一个记录后，还会继续去查找下一个记录，直到碰到第一个不满足该条件的记录；&lt;/li>
+&lt;li>而对于唯一索引来说，一旦找到一个满足条件的记录后，就会立即停止继续检索。&lt;/li>
+&lt;/ul>
+&lt;h1 id="常见的索引失效场景">常见的索引失效场景&lt;/h1>
+&lt;ol>
+&lt;li>范围查询（&amp;gt;,&amp;lt;,&amp;lt;&amp;gt;）&lt;/li>
+&lt;li>查询条件类型不一致&lt;/li>
+&lt;li>查询条件使用了函数&lt;/li>
+&lt;li>模糊查询&lt;/li>
+&lt;li>不使用组合索引的首个字段当条件&lt;/li>
+&lt;/ol>
+&lt;p>为什么会失效？&lt;/p>
+&lt;ul>
+&lt;li>顺序读比离散读性能要好：不使用覆盖索引的情况下，优化器只有在数据量小的时候才会选择使用非聚集索引。数据量大时，通过聚集索引顺序读数据行的性能会比通过非聚集索引离散读数据行要好（如读取整行数据）。&lt;/li>
+&lt;li>无法使用 B+索引快速查找。具体如上 5 点描述。&lt;/li>
+&lt;/ul>
+&lt;p>精简一下上述内容，根本原因是：&lt;/p>
+&lt;ul>
+&lt;li>全局扫描的效率高于建立索引&lt;/li>
+&lt;li>索引涉及强制的类型转换&lt;/li>
+&lt;li>索引上做相关的运算操作&lt;/li>
+&lt;/ul>
+&lt;p>具体表现：&lt;/p>
+&lt;p>(1) 组合索引未使用最左前缀，例如组合索引（A，B），where B=b不会使用索引；&lt;/p>
+&lt;p>(2) like未使用最左前缀，where A like &amp;lsquo;%China&amp;rsquo;；&lt;/p>
+&lt;p>(3) 搜索一个索引而在另一个索引上做order by，where A=a order by B，只使用A上的索引，因为查询只使用一个索引 ；&lt;/p>
+&lt;p>(4) or会使索引失效。如果查询字段相同，也可以使用索引。例如where A=a1 or A=a2（生效），where A=a or B=b（失效）&lt;/p>
+&lt;p>(5) 如果列类型是字符串，要使用引号。例如where A=&amp;lsquo;China&amp;rsquo;，否则索引失效（会进行类型转换）；&lt;/p>
+&lt;p>(6) 在索引列上的操作，函数（upper()等）、or、！=(&amp;lt;&amp;gt;)、not in等；&lt;/p>
+&lt;h1 id="名词解释">名词解释&lt;/h1>
+&lt;ul>
+&lt;li>主键索引：顾名思义该类索引由表的主键组成，从左到右由小到大排序。一个 Innodb 存储表只有一张主键索引表（聚集索引）。&lt;/li>
+&lt;li>普通索引：最为平常的一种索引，没有特别限制。&lt;/li>
+&lt;li>唯一索引：该索引的字段不能有相同值，但允许有空值。&lt;/li>
+&lt;li>组合索引：由多列字段组合而成的索引，往往是为了提升查询效率而设置。&lt;/li>
+&lt;/ul></description></item><item><title>内存分配模型</title><link>https://lawrshen.github.io/post/malloc/</link><pubDate>Tue, 17 May 2022 10:55:54 +0800</pubDate><guid>https://lawrshen.github.io/post/malloc/</guid><description>&lt;p>在UNIX/C 程序中，理解如何分配和管理内存是构建健壮和可靠软件的重要基础。&lt;/p>
+&lt;h1 id="内存类型">内存类型&lt;/h1>
+&lt;p>在运行一个C 程序的时候，会分配两种类型的内存。第一种称为&lt;code>栈内存&lt;/code>，它的申请和释放操作是编译器来隐式管理的，所以有时也称为自动（automatic）内存。&lt;/p>
+&lt;p>栈内存在程序运行过程中有编译器帮我们处理，函数处理结束，编译器释放内存，对于希望长期存在的信息，就要使用到堆内存。C语言进行堆空间分配的就是 &lt;code>malloc&lt;/code> 调用。&lt;/p>
+&lt;h1 id="malloc-调用">malloc() 调用&lt;/h1>
+&lt;p>malloc 函数非常简单：传入要申请的堆空间的大小，它成功就返回一个指向新申请空间的指针，失败就返回NULL。&lt;/p>
+&lt;p>malloc 不是系统调用，而是库调用。因此，malloc 库管理&lt;strong>虚拟地址空间内的空间&lt;/strong>，但是它本身是建立在一些系统调用之上的，这些系统调用会进入操作系统，来请求更多内存或者将一些内容释放回系统。&lt;/p>
+&lt;p>一个这样的系统调用叫作 &lt;code>brk&lt;/code>，它被用来改变程序分断（break）的位置：堆结束的位置。它需要一个参数（新分断的地址），从而根据新分断是大于还是小于当前分断，来增加或减小堆的大小。&lt;/p>
+&lt;p>此外，还有 &lt;code>mmap()&lt;/code> 从操作系统获取内存。&lt;/p>
+&lt;p>&lt;code>malloc(size_t size)&lt;/code> 分配的连续内存空间，对应的虚拟内存信息由 &lt;code>struct mm_struct *mm&lt;/code> 描述：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C" data-lang="C">&lt;span class="k">struct&lt;/span> &lt;span class="n">mm_struct&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="p">...&lt;/span>
+&lt;span class="kt">unsigned&lt;/span> &lt;span class="kt">long&lt;/span> &lt;span class="n">start_brk&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">brk&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">start_stack&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="cm">/* 栈区 的起始地址，堆区 起始地址和结束地址 */&lt;/span>
+&lt;span class="p">...&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>start_brk&lt;/code> 和 &lt;code>brk&lt;/code> 分别是堆的起始和终止地址（malloc 动态分配的内存就在这之间）。系统调用 &lt;code>brk(void *addr)&lt;/code> 可以改变这 &lt;code>brk&lt;/code> 的值，从而改变堆的大小。&lt;/p>
+&lt;h1 id="内核态交互方案">内核态交互方案&lt;/h1>
+&lt;p>由于 &lt;code>brk/sbrk/mmap&lt;/code> 属于系统调用，如果每次申请内存，都调用这三个函数中的一个，那么每次都要产生系统调用开销（即cpu从用户态切换到内核态的上下文切换，这里要保存用户态数据，等会还要切换回用户态），这是非常影响性能的。其次，这样申请的内存容易产生碎片。&lt;/p>
+&lt;p>鉴于以上理由，&lt;code>malloc&lt;/code> 采用的是内存池的实现方式：先申请一大块内存，然后将内存分成不同大小的内存块，然后用户申请内存时，直接从内存池中选择一块相近的内存块即可。&lt;/p>
+&lt;h2 id="内存池">内存池&lt;/h2>
+&lt;p>不管具体的分配算法是怎样的，为了减少系统调用，减少物理内存碎片，malloc() 的整体思想是先向操作系统申请一块大小适当的内存，然后自己管理，这就是内存池（Memory Pool）。&lt;/p>
+&lt;p>内存池的研究重点不是向操作系统申请内存，而是&lt;strong>对已申请到的内存的管理&lt;/strong>，这涉及到非常复杂的算法，是一个永远也研究不完的课题，除了C标准库自带的 malloc()，还有一些第三方的实现，比如 Goolge 的 tcmalloc 和 jemalloc。&lt;/p>
+&lt;h2 id="池化技术">池化技术&lt;/h2>
+&lt;p>在计算机中，有很多使用“池”这种技术的地方，除了内存池，还有连接池、线程池、对象池等。以服务器上的线程池为例，它的主要思想是：先启动若干数量的线程，让它们处于睡眠状态，当接收到客户端的请求时，唤醒池中某个睡眠的线程，让它来处理客户端的请求，当处理完这个请求，线程又进入睡眠状态。&lt;/p>
+&lt;p>所谓“池化技术”，就是程序先向系统申请过量的资源，然后自己管理，以备不时之需。之所以要申请过量的资源，是因为每次申请该资源都有较大的开销，不如提前申请好了，这样使用时就会变得非常快捷，大大提高程序运行效率。&lt;/p></description></item><item><title>表驱动法</title><link>https://lawrshen.github.io/post/table-driven/</link><pubDate>Wed, 09 Feb 2022 17:30:42 +0800</pubDate><guid>https://lawrshen.github.io/post/table-driven/</guid><description>&lt;p>表驱动法(Table-Driven Approach)简单说就是查表，目的是代替过多的条件分支语句。&lt;/p>
+&lt;h1 id="基本使用">基本使用&lt;/h1>
+&lt;p>表驱动法适时取用可以比复杂的逻辑代码更简单，更容易修改，而且效率更高。&lt;/p>
+&lt;p>比如说字符类型划分，比起：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-c" data-lang="c">&lt;span class="k">if&lt;/span> &lt;span class="p">(((&lt;/span> &lt;span class="sc">&amp;#39;a&amp;#39;&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="sc">&amp;#39;z&amp;#39;&lt;/span> &lt;span class="p">))&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">((&lt;/span> &lt;span class="sc">&amp;#39;A&amp;#39;&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="sc">&amp;#39;Z&amp;#39;&lt;/span> &lt;span class="p">))){&lt;/span>
+&lt;span class="n">charType&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">CharacterType&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">Letter&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="p">((&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">&amp;#39;&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;,&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;.&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;!&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;(&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;)&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;;&amp;#39;&lt;/span> &lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;?&amp;#39;&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">||&lt;/span> &lt;span class="p">(&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="sc">&amp;#39;-&amp;#39;&lt;/span> &lt;span class="p">))&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="n">charType&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">CharacterType&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">Punctuation&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="p">((&lt;/span> &lt;span class="sc">&amp;#39;0&amp;#39;&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="n">inputChar&lt;/span> &lt;span class="o">&amp;lt;=&lt;/span> &lt;span class="sc">&amp;#39;9&amp;#39;&lt;/span> &lt;span class="p">))&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="n">charType&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">CharacterType&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">Digit&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>直接用表查询更为直观：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-c" data-lang="c">&lt;span class="n">charType&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">charTypeTable&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">inputChar&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="拓展使用">拓展使用&lt;/h1>
+&lt;p>对表驱动法的拓展主要可以从key和value两个角度考虑，既然本身表驱动法是一个hash表，可以由此做文章：&lt;/p>
+&lt;h2 id="键值映射">键值映射&lt;/h2>
+&lt;p>例如，可以用下述表达式：max(min(66, age), 17) 来生成一个介于 17-66 之间的表键值。这样所有介于 1-17 直接的年龄转换成一个键值，例如 17，同时把所有超过 66 的年龄都转换成另一个键值，例如 66。&lt;/p>
+&lt;p>更进一步，可以把键值转换提取城独立子程序把键值转换提取城独立子程序。&lt;/p>
+&lt;h3 id="索引访问">索引访问&lt;/h3>
+&lt;p>key还可以通过再多建一个索引表拓展。可以有一个数据表，多个索引表。&lt;/p>
+&lt;h2 id="表格value">表格value&lt;/h2>
+&lt;p>表里除了数据外，还可以存放action，描述该action的代码/该动作的子程序的引用。比如说状态机。&lt;/p></description></item><item><title>Awk命令简介</title><link>https://lawrshen.github.io/post/awk/</link><pubDate>Mon, 08 Nov 2021 15:42:27 +0800</pubDate><guid>https://lawrshen.github.io/post/awk/</guid><description>&lt;p>最近在写测试脚本的需求时深感自己Linux命令知识的单薄，有很多常见且强大的命令不会使用，抓紧学习，在这记录一下&lt;code>awk&lt;/code>命令解析。&lt;/p>
+&lt;p>谈到&lt;code>awk&lt;/code>自然还会提到&lt;code>grep&lt;/code>和&lt;code>sed&lt;/code>，他们都是Linux下常用的文本处理工具，grep&lt;sup id="fnref:1">&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref">1&lt;/a>&lt;/sup>主要使用正则做文本搜索，并把匹配内容打印出来，而&lt;strong>替换&lt;/strong>匹配内容功能可以由sed&lt;sup id="fnref:2">&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref">2&lt;/a>&lt;/sup>完成。而最早awk&lt;sup id="fnref:3">&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref">3&lt;/a>&lt;/sup>目的是文本处理，基础是&lt;a href="https://zh.wikipedia.org/wiki/AWK">“只要在输入数据中有模式匹配，就执行一系列指令”&lt;/a>，这听着挺编译原理语义分析的。AWK还具有完全属于其本身的语法，可以支持循环，数组这样复杂的程序设计，比较擅长处理&lt;strong>格式化的文本&lt;/strong>，比如 日志、csv 格式数据。&lt;/p>
+&lt;h1 id="awk程序结构">AWK程序结构&lt;/h1>
+&lt;p>AWK程序是由一系列&lt;code>模式--动作&lt;/code>对组成的，写做&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">pattern &lt;span class="o">{&lt;/span> action &lt;span class="o">}&lt;/span>
+&lt;span class="c1"># 数据中查找的内容 { 找到时执行一系列命令 }&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>输入按行被分成了一些记录。程序根据pattern匹配每条记录，若成功则执行对应action。&lt;/p>
+&lt;p>pattern和action都可以省略不写。无pattern默认匹配全部的记录；而无action则是打印原始记录。&lt;/p>
+&lt;p>简单的AWK表达式之外，pattern可以是BEGIN或END；这两种条件对应的action相当于预处理和收尾。同时，如&lt;code>pattern1, pattern2&lt;/code>的条件表示条件pattern1和pattern2的闭区间。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">awk &lt;span class="o">[&lt;/span>-F field-separator&lt;span class="o">]&lt;/span> &lt;span class="s1">&amp;#39;BDGIN{cmds} pattern{cmds} END{cmds}&amp;#39;&lt;/span> &lt;span class="o">{&lt;/span>filename&lt;span class="o">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>以下约定：记录 (Record) 就是行，字段 (Field) 就是列，BEGIN 是预处理阶段，action 是 awk 真正工作的阶段，END 是最后处理阶段。&lt;/p>
+&lt;p>$0 指整条记录， $1 指第一个字段，以此类推。&lt;/p>
+&lt;h1 id="awk命令">AWK命令&lt;/h1>
+&lt;p>简单打印如：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">awk &lt;span class="s1">&amp;#39;{print $1,$4}&amp;#39;&lt;/span> file.txt
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>格式化打印如：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">awk &lt;span class="s1">&amp;#39;{printf &amp;#34;%-4s %-6s\n&amp;#34;,$1,$4}&amp;#39;&lt;/span> file.txt
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>实例如显示&lt;code>/etc/passwd&lt;/code>的账户：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">cat /etc/passwd &lt;span class="p">|&lt;/span>awk -F &lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;{print $1}&amp;#39;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="advanced">Advanced&lt;/h1>
+&lt;ol>
+&lt;li>可以在pattern中用比较运算符做过滤&lt;/li>
+&lt;li>内置变量：
+&lt;ol>
+&lt;li>NR：Number of Records已输入记录的条数。&lt;/li>
+&lt;li>NF：Number of Fields 当前记录中域的个数。记录中最后一个域可以以$NF的方式引用。&lt;/li>
+&lt;li>FILENAME：当前输入文件的文件名。&lt;/li>
+&lt;li>FS：“Field Separator域分隔符”，用于将输入记录分割成域。其默认值为“空白字符”，即空格和制表符。FS可以替换为其它字符，从而改变域分隔符。&lt;/li>
+&lt;li>RS：当前的“记录分隔符”。默认状态下，输入的每行都被作为一个记录，因此默认记录分隔符是换行符。&lt;/li>
+&lt;li>OFS：“输出域分隔符”，即分隔print命令的参数的符号。其默认值为空格。&lt;/li>
+&lt;li>ORS：“输出记录分隔符”，即每个print命令之间的符号。其默认值为换行符。OFMT：“输出数字格式”（Format for numeric output），其默认值为&amp;quot;%.6g&amp;quot;。&lt;/li>
+&lt;/ol>
+&lt;/li>
+&lt;li>变量定义，使用[A-Za-z0-9_]的字符串&lt;/li>
+&lt;li>函数定义，与C类似，以关键字function开头，后面跟函数名称，参数列表和函数体。&lt;/li>
+&lt;/ol>
+&lt;p>这里只是对&lt;code>awk&lt;/code>命令做了一些基本的介绍，更多复杂的指令还需在实践中加强。&lt;/p>
+&lt;h1 id="相似博客">相似博客&lt;/h1>
+&lt;p>&lt;a href="https://www.cnblogs.com/ggjucheng/archive/2013/01/13/2858470.html">linux awk命令详解&lt;/a>&lt;/p>
+&lt;hr>
+&lt;p>题外话：学习压力，缺失反馈等等原因，很久没有更博了，有一些草稿也还未发出来，努力把awk学习一下，发作博客。&lt;/p>
+&lt;section class="footnotes" role="doc-endnotes">
+&lt;hr>
+&lt;ol>
+&lt;li id="fn:1" role="doc-endnote">
+&lt;p>grep名称来源于g/re/p(global search regular expression(RE) and print out the line,全局搜索正则表达式并把行打印出来)&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li id="fn:2" role="doc-endnote">
+&lt;p>sed名称来源于s/ed(stream editor,流编辑器)&amp;#160;&lt;a href="#fnref:2" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li id="fn:3" role="doc-endnote">
+&lt;p>awk名称来源于三个发明人首字母&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;/section></description></item><item><title>计算机网络缺失的一课 Http</title><link>https://lawrshen.github.io/post/http/</link><pubDate>Sun, 19 Sep 2021 15:47:09 +0800</pubDate><guid>https://lawrshen.github.io/post/http/</guid><description>&lt;div class="admonition info">&lt;p class="admonition-title">背景&lt;/p>
+&lt;p>上计网课的时候应用层协议蜻蜓点水的一笔带过了，期末也不设置考点，这块内容难免有所薄弱，但http协议作为常见的应用层协议，有一个基础的掌握还是有必要的。&lt;/p>
+&lt;/div>
+&lt;p>&lt;img src="../../source/http/HTTP1-3.jpg" alt="HTTP1-3">&lt;/p>
+&lt;h1 id="what-http-">what HTTP ?&lt;/h1>
+&lt;p>HTTP【HyperText Transfer Protocol「超文本传输协议」】 是一个在计算机世界里专门在两点之间传输文字、图片、音频、视频等超文本数据的约定和规范。&lt;/p>
+&lt;h1 id="http请求">http请求&lt;/h1>
+&lt;p>http请求由三部分组成，分别是：起始行、消息报头、请求正文&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">Request Line&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+Header-Name: header-value&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+Header-Name: header-value&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+//一个或多个，均以&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>结尾
+&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+body//请求正文
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>1、起始行以一个方法符号开头，以空格分开，后面跟着请求的URI和协议的版本，格式如下：&lt;/p>
+&lt;blockquote>
+&lt;p>Method Request-URI HTTP-Version CRLF&lt;/p>
+&lt;/blockquote>
+&lt;p>其中 Method表示请求方法；Request-URI是一个统一资源标识符；HTTP-Version表示请求的HTTP协议版本；CRLF表示回车和换行（除了作为结尾的CRLF外，不允许出现单独的CR或LF字符）。&lt;/p>
+&lt;p>&lt;img src="../../source/http/http-request.image" alt="http-request">&lt;/p>
+&lt;p>&lt;img src="../../source/http/http-request-example.image" alt="http-request-example">&lt;/p>
+&lt;p>2、请求方法（所有方法全为大写）有多种，各个方法的解释如下：&lt;/p>
+&lt;blockquote>
+&lt;ul>
+&lt;li>GET：请求获取Request-URI所标识的资源&lt;/li>
+&lt;li>POST：在Request-URI所标识的资源后附加新的数据&lt;/li>
+&lt;li>HEAD：求获取由Request-URI所标识的资源的响应消息报头&lt;/li>
+&lt;li>PUT：请求服务器存储一个资源，并用Request-URI作为其标识&lt;/li>
+&lt;li>DELETE：请求服务器删除Request-URI所标识的资源&lt;/li>
+&lt;li>TRACE：请求服务器回送收到的请求信息，主要用于测试或诊断&lt;/li>
+&lt;li>CONNECT：保留将来使用&lt;/li>
+&lt;li>OPTIONS：请求查询服务器的性能，或者查询与资源相关的选项和需求&lt;/li>
+&lt;/ul>
+&lt;/blockquote>
+&lt;hr>
+&lt;p>响应行的报文格式如下：&lt;/p>
+&lt;p>&lt;img src="../../source/http/response-line.image" alt="response-line">&lt;/p>
+&lt;p>示例：&lt;/p>
+&lt;p>&lt;img src="../../source/http/response-line-example.image" alt="response-line-example">&lt;/p>
+&lt;p>主要有五类状态码：&lt;/p>
+&lt;ul>
+&lt;li>1××：提示信息，表示目前是协议处理的中间状态，还需要后续的操作；&lt;/li>
+&lt;li>2××：成功，报文已经收到并被正确处理；&lt;/li>
+&lt;li>3××：重定向，资源位置发生变动，需要客户端重新发送请求；&lt;/li>
+&lt;li>4××：客户端错误，请求报文有误，服务器无法处理；&lt;/li>
+&lt;li>5××：服务器错误，服务器在处理请求时内部发生了错误。&lt;/li>
+&lt;/ul>
+&lt;p>内容协议请求头和对应的响应头对应关系如下:&lt;/p>
+&lt;p>&lt;img src="../../source/http/http-req-res.image" alt="http-req-res">&lt;/p>
+&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://www.cnblogs.com/xiekun/p/14221020.html">51张图掌握HTTP&lt;/a>&lt;/p></description></item><item><title>Go Mod版本管理概要</title><link>https://lawrshen.github.io/post/go-mod/</link><pubDate>Sun, 12 Sep 2021 16:02:02 +0800</pubDate><guid>https://lawrshen.github.io/post/go-mod/</guid><description>&lt;p>一图概述Go MOD版本管理：&lt;/p>
+&lt;p>&lt;img src="../../source/gomod.png" alt="GO MOD">&lt;/p>
+&lt;h1 id="关于go关于语言">关于go，关于语言&lt;/h1>
+&lt;p>&lt;code>SICP&lt;/code>指出，在学习一门编程语言时要特别注意以下三个方面：&lt;/p>
+&lt;ol>
+&lt;li>这门语言提供了哪些Primitive，比如基本类型，比如基本运算符、表达式和语句。&lt;/li>
+&lt;li>这门语言提供了哪些组合规则，比如基本类型如何组成复合类型，比如简单的表达式和语句如何组成复杂的表达式和语句。&lt;/li>
+&lt;li>这门语言提供了哪些抽象机制，包括数据抽象和过程抽象（Procedure Abstraction）。&lt;/li>
+&lt;/ol>
+&lt;p>这些无疑都非常重要，但在现代编程语言的发展下，如&lt;code>golang&lt;/code>这种生而为项目开发的语言还会在繁复的第三方库部分需要一个官方可行性好的包管理器。&lt;/p>
+&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://github.com/vikyd/note/">go技术博客&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://eddycjy.com/posts/go/go-moduels/2020-02-28-go-modules/">Go Modules 终极入门&lt;/a>&lt;/p></description></item><item><title>Docker里使用MySQL</title><link>https://lawrshen.github.io/post/docker-mysql/</link><pubDate>Sat, 28 Aug 2021 20:14:00 +0800</pubDate><guid>https://lawrshen.github.io/post/docker-mysql/</guid><description>&lt;p>本科前两年因为装软件搞的老电脑乌烟瘴气（主要是装了各种依赖以及混乱的文件管理），避开了装病毒软件的坑之外，太多软件只是一学期上课使用而已&lt;/p>
+&lt;p>，为此大动干戈在电脑上反反复复可能还会遇到依赖相关的问题（Windows在编程配置方面实在是永远的痛。。），介于暑假又接触到了docker里跑pgsql决定在这个学期的数据库课环境也用docker构建MySQL的镜像，一劳永逸。下面记录了从0到成功运行的过程。&lt;/p>
+&lt;h1 id="运行环境">运行环境&lt;/h1>
+&lt;p>Windows10 - WSL2 - Ubuntu18.04&lt;/p>
+&lt;p>Windows10使用docker可以参考&lt;a href="https://docs.docker.com/desktop/windows/install/">官方文档&lt;/a>或者这份网上的&lt;a href="https://yeasy.gitbook.io/docker_practice/install/windows">简易版本&lt;/a>。&lt;/p>
+&lt;h1 id="docker中使用mysql">docker中使用mysql&lt;/h1>
+&lt;h2 id="去docker-hub下载源">去docker hub下载源&lt;/h2>
+&lt;p>(这里我选了比较新的一个version 5.7.35)&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker pull mysql:5.7.35
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="创建并启动mysql容器设置端口才可以连接">创建并启动mysql容器(设置端口才可以连接)&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -itd --name mysql -p 3306:3306 -e &lt;span class="nv">MYSQL_ALLOW_EMPTY_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>yes mysql:5.7.35
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="admonition info">&lt;p class="admonition-title">参数&lt;/p>
+&lt;p>run：运行docker镜像&lt;/p>
+&lt;p>&amp;ndash;name：给容器取名叫mysql&lt;/p>
+&lt;p>-e：设置容器里的环境变量（这里置空了mysql的密码环境变量&lt;/p>
+&lt;p>-d：容器在后台运行&lt;/p>
+&lt;p>最后为依赖的镜像名字&lt;/p>
+&lt;/div>
+&lt;p>为了在docker容器删除后依然保存所需要的数据可以再增加挂载参数。首先在本地新建一个&lt;code>~/sqldata&lt;/code>文件夹用来存放mysql的数据文件&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -d -p 3306:3306 -v ~/sqldata:/var/lib/mysql -e &lt;span class="nv">MYSQL_ROOT_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="m">123456&lt;/span> --name mysql mysql:5.7.35
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="admonition info">&lt;p class="admonition-title">参数&lt;/p>
+&lt;p>-v：将容器中的目录和宿主机中的目录做映射&lt;/p>
+&lt;/div>
+&lt;p>我们只要把容器中mysql的数据目录映射到本地，将来就算这个容器被删除了，那么数据也还是在本地&lt;/p>
+&lt;h2 id="查看容器">查看容器&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker ps mysql
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="进入mysql容器">进入mysql容器&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker &lt;span class="nb">exec&lt;/span> -it mysql-test mysql -h localhost -u root -p
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>输入刚刚的PASSWORD进入数据库，而宿主机中的~/sqldata目录也有通过mysql创建的数据库&lt;/p>
+&lt;h2 id="完成之后删除mysql这个容器">完成之后删除mysql这个容器&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker stop mysql
+docker rm mysql
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>接着我们重新生成容器&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker run -d -p 3306:3306 -v ~/sqldata:/var/lib/mysql -e &lt;span class="nv">MYSQL_ROOT_PASSWORD&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="m">123456&lt;/span> --name mysql mysql:5.7.35
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>检查原来存放于mysql中数据可以重新访问，启动docker速度还快。&lt;/p>
+&lt;div class="admonition note">&lt;p class="admonition-title">补充&lt;/p>
+&lt;p>使用容器中的客户端去连接其他的mysql数据库（假设远程数据库ip:72.17.0.1）&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker &lt;span class="nb">exec&lt;/span> -it mysql:5.7.35 -h 72.17.0.1 -u root -p
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/div>
+&lt;h1 id="通过mysql执行sql文件">通过MySQL执行sql文件&lt;/h1>
+&lt;p>把宿主机下写好的sql文件用&lt;code>docker cp&lt;/code>拷贝过去。如&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">docker cp src.sql container_name:DIR
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>然后MySQL激活即可，&lt;code>mysql &amp;lt; src.sql&lt;/code>。&lt;/p>
+&lt;p>查看方式&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">mysql -h localhost -u root -p
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://blog.csdn.net/wade3015/article/details/89843917">Docker中使用mysql数据库&lt;/a>&lt;/p></description></item><item><title>自定义配置一个简洁高效的Zsh</title><link>https://lawrshen.github.io/post/basic-zsh/</link><pubDate>Fri, 27 Aug 2021 23:49:47 +0800</pubDate><guid>https://lawrshen.github.io/post/basic-zsh/</guid><description>&lt;blockquote>
+&lt;p>事实上 oh-my-zsh 并不好用，严重拖慢了 Zsh 的速度，反而让你的工作并不高效。&lt;/p>
+&lt;/blockquote>
+&lt;p>Shell 是类 Unix 系统中超级好用的工具，而 Zsh 是 shell 中的佼佼者，但是现在网上一搜索 Zsh 的配置方案，遍地都是的互相复制粘贴的 oh-my-zsh 配置方案。&lt;/p>
+&lt;p>事实上 oh-my-zsh 作为管理zsh插件的软件并不好用，严重拖慢了 Zsh 的速度，反而让你的工作并不高效。我在WSL2的Ubuntu18.04发行版上从0开箱Zsh，确保轻量好用。&lt;/p>
+&lt;h1 id="在-ubuntu-安装-zsh">在 Ubuntu 安装 Zsh&lt;/h1>
+&lt;p>终端里面输入：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">sudo apt-get update
+sudo apt-get install zsh
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="安装插件">安装插件&lt;/h1>
+&lt;p>有两个常常推荐的插件：&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>zsh-autosuggestions&lt;/code>：这个是自动建议插件，能够自动提示你需要的命令。&lt;/li>
+&lt;li>&lt;code>zsh-syntax-highlighting&lt;/code>：这个是代码高亮插件，能够使你的命令行各个命令清晰明了。&lt;/li>
+&lt;/ul>
+&lt;h2 id="下载方式">下载方式&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">sudo apt-get install zsh-autosuggestions zsh-syntax-highlighting
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="安装主题">安装主题&lt;/h1>
+&lt;p>个人推荐 &lt;code>zsh-theme-powerlevel10k&lt;/code> 这个主题提供漂亮的提示符，可以显示当前路径、时间、命令执行成功与否，还能够支持 git 分支显示等等。&lt;/p>
+&lt;!-- more -->
+&lt;p>配置信息按照GitHub的&lt;a href="https://github.com/romkatv/powerlevel10k">README&lt;/a>操作就行，开箱即用。要点如下：&lt;/p>
+&lt;p>获取下载：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">git clone --depth&lt;span class="o">=&lt;/span>&lt;span class="m">1&lt;/span> https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
+&lt;span class="nb">echo&lt;/span> &lt;span class="s1">&amp;#39;source ~/powerlevel10k/powerlevel10k.zsh-theme&amp;#39;&lt;/span> &amp;gt;&amp;gt;~/.zshrc
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>剩下就是初次配置的例行操作。&lt;/p>
+&lt;h2 id="主题字体">主题字体&lt;/h2>
+&lt;p>主题虽然好看但是可能会有font的问题，这里在WSL下的terminal遇到比较费劲的困难记录如下：&lt;/p>
+&lt;p>比起官方非常大文件的下载，这里其实只需要安装&lt;a href="../../source/JetBrains%20Mono%20Regular%20Nerd%20Font%20Complete.ttf">JetBrains Mono Regular Nerd Font Complete.ttf&lt;/a>,存放在&lt;code>\usr\share\fonts\&lt;/code>目录下，然后更新字体缓存。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">sudo fc-cache -fv
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>然后在vscode的terminal font里注意替换成&lt;code>JetBrainsMono Nerd Font&lt;/code>,重新载入vscode界面方可。&lt;/p>
+&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://blog.csdn.net/KeyBordkiller/article/details/109537610">在windows中ohmyzsh 的powerlevel10k主题及插件推荐&lt;/a>&lt;/p></description></item><item><title>在Windows上更舒服简单的使用终端</title><link>https://lawrshen.github.io/post/bash-on-windows/</link><pubDate>Sun, 22 Aug 2021 20:57:27 +0800</pubDate><guid>https://lawrshen.github.io/post/bash-on-windows/</guid><description>&lt;h1 id="bash-on-windows">Bash on Windows&lt;/h1>
+&lt;p>Windows作为桌面操作系统界的霸主在编程方面有一些一言难尽的硬伤，对Windows用户而言开发环境的选择一般有：纯 Windows、Windows+虚拟机 和 Windows+双系统。&lt;/p>
+&lt;p>纯Windows环境往往会增加折腾过程的难度，同时Windows 老旧的命令行界面和Windows独自的命令集也让人不那么提得起劲。后两种虽然能够体验最纯粹的 GNU/Linux 环境，但虚拟机的启动等待和系统的切换等待让这一过程显得不那么顺滑。而一个即插即用的终端软件，能够顺滑高效地体验终端的魅力，在多年需求之下，终于有了Microsoft官方的支持： &lt;code>Windows Terminal &lt;/code>&lt;/p>
+&lt;h2 id="why-terminal-">Why Terminal ？&lt;/h2>
+&lt;p>Microsoft的 Windows Terminal是一个很现代的终端工具，集成了powershell,cmd,wsl，可以同一个窗口中&lt;strong>顺滑&lt;/strong>地使用不同的环境与工具。&lt;/p>
+&lt;h2 id="how-terminal-">How Terminal ？&lt;/h2>
+&lt;p>Terminal安装过程十分简单，只需要在电脑上打开&lt;a href="https://aka.ms/terminal">Microsoft Store&lt;/a>，搜索Terminal并安装即可。安装完启动，便可以愉快地玩耍啦！&lt;/p>
+&lt;p>当然为了能在Windows使用linux命令强烈推荐跟着官方教程一步一步安装&lt;a href="https://docs.microsoft.com/en-us/windows/wsl/install-win10">WSL&lt;/a>。&lt;/p>
+&lt;h2 id="easier-coding">Easier Coding&lt;/h2>
+&lt;p>其实现在的编辑器（如vscode）和IDE（如jetbrains系列）都在editor里内置了terminal方便运行代码，让terminal互通也很简单。&lt;/p>
+&lt;p>如vscode，在拓展中下载&lt;code>Remote - WSL&lt;/code>，然后打开&lt;code>Terminal &lt;/code>，输入cd命令（默认）进入&lt;code>$HOME&lt;/code>目录，输入&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">code .
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>等待完成初始化就可以在vscode里使用terminal并且编辑代码了。更多配置可以参考&lt;a href="https://code.visualstudio.com/docs/remote/wsl">官方文档&lt;/a>。&lt;/p>
+&lt;h2 id="anything-else">Anything else&lt;/h2>
+&lt;p>对于开发人员来说，能够有一个全平台一致的 CLI （Command Line Interface）工具还是挺有必要的，但上面一通terminal配置似乎还是有点繁琐，害怕出现意想不到的bug，有没有更简单的终端可以练手呢？&lt;/p>
+&lt;p>git的&lt;code>bash.exe&lt;/code>或许是一个不错的选择，只要安装了git就可以点击运行，也可以在editor选择默认terminal为&lt;code>bash.exe&lt;/code>，能看到在对应的&lt;code>/usr/bin&lt;/code>目录中下常用的命令行工具如&lt;code>ssh nano curl wget cat ls mv mkdir ...&lt;/code>都已经内置了。非常方便。&lt;/p></description></item><item><title>社交媒介困境笔记</title><link>https://lawrshen.github.io/post/social-media/</link><pubDate>Fri, 20 Aug 2021 10:26:27 +0800</pubDate><guid>https://lawrshen.github.io/post/social-media/</guid><description>&lt;blockquote>
+&lt;p>试图探讨和社交媒体困境相关的三个主题：社交压力来源，现有解法利弊，其他解法可能&lt;/p>
+&lt;/blockquote>
+&lt;p>身边有不少人发布朋友圈，qq空间之类的熟人社交媒体平台的比率比较低，有些人本来发的内容也很多，但渐渐的越来越谨慎，发布频率也不停下降。&lt;/p>
+&lt;p>这种背离社交媒体产品导向&lt;sup id="fnref:1">&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref">1&lt;/a>&lt;/sup>的行为，通常而言，社交压力可能是很大一个原因。&lt;/p>
+&lt;h1 id="社交压力来源">社交压力来源&lt;/h1>
+&lt;p>社交关系分为以下二点：&lt;/p>
+&lt;h2 id="精致人设">精致人设&lt;/h2>
+&lt;p>可以看到现在还发布频率比较频繁的社交媒介中，通常偏向于精致化的内容。但这些内容同时会给看的人带来一些压力，迫使自己的动态也向精致化发展，无形中增加了内卷。暗暗拔高了发布门槛。&lt;/p>
+&lt;h2 id="复杂关系">复杂关系&lt;/h2>
+&lt;p>随着使用微信时间的延长，其中沉淀的关系链杂程度也与日俱增。由于我们针对不同关系表现的人设往往有所不同，随着关系的越发复杂，不同人设间的交集越来越小，不设分组可见的话，能发的朋友圈最后只剩如晒猫这样的「绝对安全内容」。&lt;/p>
+&lt;h1 id="现有解法利弊">现有解法利弊&lt;/h1>
+&lt;h2 id="弱化人设">弱化人设&lt;/h2>
+&lt;p>类似于现在的历史可见范围，主要起两方面作用。月年不可见主要是不展示久远动态，而3天不可见更倾向于阅后即焚，减小了社交压力。&lt;/p>
+&lt;p>这种解法没有太大改变用户习惯，照常发动态，但是潜在负面影响有profile的缺失影响新关系的建立。&lt;/p>
+&lt;h2 id="简化关系">简化关系&lt;/h2>
+&lt;p>自行打tag来区分用户是老熟人还是点头之交，虽然管理复杂，但诸如微信已经变成加好友必经之步了，能看or不能看。但过于复杂的人际关系还是单纯打tag变成线下聚会时尴尬的你看了但我被屏蔽的窘境。&lt;/p>
+&lt;h1 id="其他解法可能">其他解法可能&lt;/h1>
+&lt;p>其他可能方法或许需要算法介入，通过迭代标签的方法，靠推荐算法来缓解社交压力。但是用户成本是个难考虑的因素。&lt;/p>
+&lt;p>以及社交媒体来帮你算好友标签本来就有些可怕了。不管算法的实习机制如何，对于用户而言，有一种被机器监视掌控了真实社交关系的感受，例如聊天记录的数据不可靠可能会诱发毁灭性的不安全感。&lt;/p>
+&lt;p> &lt;/p>
+&lt;p>社交媒体发布下降的原因不只会是社交压力一点，这边浅尝辄止的提出一些看法以供参考。&lt;/p>
+&lt;section class="footnotes" role="doc-endnotes">
+&lt;hr>
+&lt;ol>
+&lt;li id="fn:1" role="doc-endnote">
+&lt;p>即多发动态，多社交，有利于巩固社交媒体护城河&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;/section></description></item><item><title>快速上手RSS，给自己订阅消息</title><link>https://lawrshen.github.io/post/ohmyrss/</link><pubDate>Mon, 16 Aug 2021 22:04:17 +0800</pubDate><guid>https://lawrshen.github.io/post/ohmyrss/</guid><description>&lt;p>网上其实还是能搜到不少介绍RSS的介绍的，但是新手可能更关心如何上手的问题。anyway先能用起来才有进一步学习的动力，本文记录了我从接触RSS到使用的历程。&lt;/p>
+&lt;h1 id="简介">简介&lt;/h1>
+&lt;p>摘自网络的介绍。RSS的全称是Really Simple Syndication（简易信息聚合），它是一种&lt;strong>消息来源的格式规范&lt;/strong>，网站可以按照这种格式规范提供文章的标题、摘要、全文等信息给订阅用户，用户可以通过订阅不同网站 RSS 链接的方式&lt;strong>将不同的信息源进行聚合&lt;/strong>，在一个工具里阅读这些内容。&lt;/p>
+&lt;p>简单来说，RSS 就是一种&lt;strong>订阅某个网站内容更新的协议&lt;/strong>。这种略显「古老」的协议在社交媒体和聚合阅读的冲击下日渐式微，甚至连 Google 也于 2013 年关闭了自家的 RSS 服务 Google Reader。那么，我们为什么还要选择 RSS 呢？&lt;/p>
+&lt;p>RSS，通过订阅的方式，将我们需要的所有信息相聚合，并提供分类。作为反算法推荐的一种方式，找到自己所关心的信息。&lt;/p>
+&lt;h1 id="上手">上手&lt;/h1>
+&lt;p>使用RSS的方法一般是用一个RSS阅读器订阅提供的RSS地址。考虑一个在线阅读器的基本需求，无外乎以下几点：&lt;/p>
+&lt;ol>
+&lt;li>支持多平台&lt;/li>
+&lt;li>支持阅读记录同步&lt;/li>
+&lt;li>支持收藏或标记功能&lt;/li>
+&lt;li>无需自己部署（没有服务器x）&lt;/li>
+&lt;/ol>
+&lt;p>目前使用比较老牌的feedly试水。使用方法很简单，注册账户然后添加订阅即可。（需要外网），配合了feedly mini插件食用。&lt;/p></description></item><item><title>公开课笔记</title><link>https://lawrshen.github.io/post/opencourse-list/</link><pubDate>Sun, 15 Aug 2021 14:11:28 +0800</pubDate><guid>https://lawrshen.github.io/post/opencourse-list/</guid><description>&lt;blockquote>
+&lt;p>一些有所收获的公开课记录，涵盖了技术，人文各方面有见解的讲授。&lt;/p>
+&lt;/blockquote>
+&lt;h1 id="社会篇">社会篇&lt;/h1>
+&lt;p>人是一切社会关系的总和，技术人员只是社会人员的小子集。除了懂技术还应该懂些社会。&lt;/p>
+&lt;h2 id="关于演讲">关于演讲&lt;/h2>
+&lt;h3 id="mit-how-to-speak">MIT how to speak&lt;/h3>
+&lt;ul>
+&lt;li>&lt;a href="https://www.youtube.com/watch?v=Unzc731iCUY">youtube&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://www.bilibili.com/video/BV1eD4y197Jh">bilibili&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;div class="admonition note">&lt;p class="admonition-title">takeaway notes&lt;/p>
+&lt;p>你人生的成功在很大程度上取决于你说话的能力、写作的能力和思想的质量。&lt;/p>
+&lt;p>交流的质量、你的口语、你的写作取决于你有多少知识储备，你用这些知识进行了多少实践，以及你固有的天赋。（天赋的占比非常小）&lt;/p>
+&lt;/div>
+&lt;ol>
+&lt;li>如何开始演讲，&lt;strong>不建议使用笑话&lt;/strong>，人们还未进入状态，他们正在适应你的说话方式，适应你的声音特征，他们还没有准备好听笑话。&lt;strong>从承诺开始&lt;/strong>，告诉他们，当这次演讲结束后，他们会学到什么。比如，在这次演讲结束后，你会知道关于演讲的技巧，这些技巧是你现在不知道的，而这些你将学到的知识可能对你的生活产生影响。&lt;/li>
+&lt;li>在主题上&lt;strong>反复循环&lt;/strong>观点。&lt;/li>
+&lt;li>在观点周围建立围栏，确保不会与别人的观点混淆。&lt;strong>区分与你类似的观点&lt;/strong>。比如，我的观点可能和xx很像，但我们的不同之处在于xxxxx。&lt;/li>
+&lt;li>利用语言&lt;strong>标记&lt;/strong>，比如123点的大纲。&lt;/li>
+&lt;li>提个问题，等待回答的标准时间是默数7秒。提出的问题不能太难也不能太简单。&lt;/li>
+&lt;/ol></description></item><item><title>正经人谁写日记啊</title><link>https://lawrshen.github.io/diary/</link><pubDate>Sun, 15 Aug 2021 10:39:12 +0800</pubDate><guid>https://lawrshen.github.io/diary/</guid><description>&lt;p>正经人谁写日记啊,不过我也不是啥正经人，写起来也只是想到啥说啥了，每天都写一点，随文章更新。&lt;/p>
+&lt;h1 id="2021">2021&lt;/h1>
+&lt;h2 id="august">August&lt;/h2>
+&lt;h3 id="15th">15th&lt;/h3>
+&lt;p>每日一题发现自己已经想不到用dp了，算法危。今天还要把paper看掉。&lt;/p>
+&lt;p>怎么又周日了啊，不想上班的咸鱼落泪。&lt;/p>
+&lt;h3 id="16th">16th&lt;/h3>
+&lt;p>paper没看完，但还是联系了老师。具体还是开学再说，疫情真的，离正常生活好远。&lt;/p>
+&lt;p>实习这边原本以为pgsql的知识要补上，没想到栽在了docker，一边要快点学，一边又在疯狂摸鱼。&lt;/p>
+&lt;h3 id="17th">17th&lt;/h3>
+&lt;p>折腾了RSS，暂时感觉不错，用了feedly。&lt;/p>
+&lt;p>实习收回昨天的话，docker跑通了，还是看pg&lt;/p>
+&lt;h3 id="18th">18th&lt;/h3>
+&lt;p>开了复盘会议，因为同时跟了两个产品的需求，测试时候都算是用户视角的体验，难得参会感不辍。&lt;/p>
+&lt;h3 id="19th">19th&lt;/h3>
+&lt;p>从18号晚开始折腾在docker里跑easyconnect，出了一些还不能解决的bug，需求其实就是连校园网上教务系统，太难了。&lt;/p>
+&lt;h3 id="21th">21th&lt;/h3>
+&lt;p>WSL2的小毛小病好麻烦。。用python试图画图时候发现只能在交互界面显示。找到了&lt;a href="https://github.com/microsoft/vscode-remote-release/issues/452">issue452&lt;/a>&lt;/p>
+&lt;h3 id="22th">22th&lt;/h3>
+&lt;p>少点网上冲浪，多读读书。&lt;/p>
+&lt;h3 id="28th">28th&lt;/h3>
+&lt;p>正式实习的日子结束了，想快点开学。今晚折腾了好久zsh配置，希望以后能少点（&lt;/p></description></item><item><title>Leetcode刷题笔记</title><link>https://lawrshen.github.io/post/leetcode/</link><pubDate>Sun, 15 Aug 2021 10:37:11 +0800</pubDate><guid>https://lawrshen.github.io/post/leetcode/</guid><description>&lt;h1 id="576-出界的路径数httpsleetcode-cncomproblemsout-of-boundary-paths">576 &lt;a href="https://leetcode-cn.com/problems/out-of-boundary-paths/">出界的路径数&lt;/a>&lt;/h1>
+&lt;blockquote>
+&lt;p>m*n表格(1x1~50x50)中一个位置在给定maxMove(0~50)的情况下到达边框外的路径数量和&lt;/p>
+&lt;/blockquote>
+&lt;p>有三个参数，起始点的横纵坐标，移动次数，递推关系在于相邻格子的路径数和maxMove限制。&lt;strong>比较难想的一点是以移动次数做递推，由初始化保证是从start点出发，讲到达超出边界的路径数求和&lt;/strong>&lt;/p>
+&lt;p>剩下就是动态规划标准路数：&lt;/p>
+&lt;p>设 $\text{dp}[k][i][j] := 移动 k 次后到达坐标(i,j)的路径数$&lt;/p>
+&lt;p>init: $\text{dp}[0][start_i][start_j]=1$ ； $\text{dp}[0][other_i][other_j]=0$&lt;/p>
+&lt;p>recurrence:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-fallback" data-lang="fallback">if around in grad:
+dp[k+1][around_i][around_j]+=dp[k][i][j]
+else outside:
+ans+=dp[k][i][j]
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>time:&lt;/p>
+&lt;p>$O(n)=O(maxMove*m*n)$&lt;/p>
+&lt;h1 id="526-优美的排列httpsleetcode-cncomproblemsbeautiful-arrangement">526 &lt;a href="https://leetcode-cn.com/problems/beautiful-arrangement/">优美的排列&lt;/a>&lt;/h1>
+&lt;blockquote>
+&lt;p>n(1~15)个数的排列组合，第i位数和下标i有整除关系。&lt;/p>
+&lt;/blockquote>
+&lt;p>挺直白的一道回溯题。解题通常是逐个尝试，不行回退。一般要维护一个visit数组记录当前过程的回溯情况。回溯走到尽头时把记录数+1。&lt;/p>
+&lt;p>这道题为了优化回溯效率，还可以预处理每个索引可以存在的数字。&lt;/p>
+&lt;p>dfs:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-fallback" data-lang="fallback">backtrace = func(index int) {
+if end:
+ans++
+return
+for _,val := range choice[index]:
+if not visit[val]:
+visit[val] = true
+backtrace(index + 1)
+visit[val] = false
+}
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>528 &lt;a href="https://leetcode-cn.com/problems/random-pick-with-weight/">按权重随机选择&lt;/a>&lt;/p>
+&lt;p>前缀和+二分查找&lt;/p>
+&lt;p>设数组 w 的权重之和为 $$\textit{total}$$。根据题目的要求，我们可以看成将 $$[1, \textit{total}]$$ 范围内的所有整数分成 n 个部分（其中 n 是数组 w 的长度）&lt;/p>
+&lt;p>PS：对应操作系统小知识点：&lt;a href="https://pages.cs.wisc.edu/~remzi/OSTEP/Chinese/09.pdf">彩票调度&lt;/a> 可是说是这个题目的应用场景吧&lt;/p>
+&lt;h1 id="502-ipohttpsleetcode-cncomproblemsipo">502 &lt;a href="https://leetcode-cn.com/problems/ipo/">IPO&lt;/a>&lt;/h1>
+&lt;blockquote>
+&lt;p>纯利润 &lt;code>profits[i]&lt;/code> ，启动资本 &lt;code>capital[i]&lt;/code>，初始资本 &lt;code>w&lt;/code>，选&lt;code>k&lt;/code>个最大化净利润&lt;/p>
+&lt;/blockquote>
+&lt;p>如果没有k个限制，直接按&lt;code>capital[i]&lt;/code>从小到大排，不停加profits，直到加不了。而根据现在的题目限制，可以贪心的选取目前持有资本下获得利润最多的项目&lt;code>i&lt;/code>，形式化的写法可以用：
+$$
+w \text{+=} profits[i] \text{【capital[i]&amp;lt;w &amp;amp; max(profits[i])】}
+$$
+&lt;code>capital[i]&lt;/code>和&lt;code>profits[i]&lt;/code> 构成元组，以&lt;code>capital[i]&lt;/code>为指标排序，满足小于w的情况下遍历&lt;code>capital&lt;/code>找最大的&lt;code>profits[i]&lt;/code> ，这边可以用堆做数据结构优化，存入元组的&lt;code>profits[i]&lt;/code> 项，然后取出堆顶元素，重复k次即可。&lt;/p>
+&lt;p>PS：对应操作系统小知识点：银行家算法&lt;/p>
+&lt;h1 id="470-用-rand7-实现-rand10httpsleetcode-cncomproblemsimplement-rand10-using-rand7">470 &lt;a href="https://leetcode-cn.com/problems/implement-rand10-using-rand7/">用 Rand7() 实现 Rand10()&lt;/a>&lt;/h1>
+&lt;p>概率题：&lt;/p>
+&lt;p>1.如何利用一个小范围随机数，得到一个大范围等概率随机数？&lt;/p>
+&lt;p>采用随机数的 k 进制，对于 randN，采用 &lt;code>N 进制&lt;/code>，即：(randN - 1) * N + randN 得到了一个 N*N 范围的等概率随机数，如果还不够大，可以继续在 randN 或生成的 randN*N 上使用这个。&lt;/p>
+&lt;p>2.如何利用一个小范围随机数，得到一个确定范围的等概率随机数？&lt;/p>
+&lt;p>先采用随机数的 k 进制，得到一个不小于确定范围的随机数 randK，然后对超过确定范围数进行拒绝即可。 注意，如果 K 比确定范围大太多，拒绝策略效率可能就会比较低（经常生成要拒绝的随机数），此时可以把要拒绝的随机数看成一个新的 randM，然后针对这个 randM 再思考怎么用这三个方法也得到确定范围的随机数&lt;/p>
+&lt;p>3.补充技能&lt;/p>
+&lt;p>对于随机数 randN，只要 K 是 N 的约数（或者说 N 是 K 的整数倍），都可以通过 randN 一步得到 randK：randK = (randN % K) + 1;&lt;/p></description></item><item><title>WSL2的网，连上了但还没完全连上</title><link>https://lawrshen.github.io/post/wsl-net/</link><pubDate>Wed, 11 Aug 2021 22:45:17 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl-net/</guid><description>&lt;blockquote>
+&lt;p>无特别说明，本文以下内容所提到的 WSL 皆指 WSL2。&lt;/p>
+&lt;/blockquote>
+&lt;p>起因是为了在Windows10运行docker，这个暑假就开始使用WSL进行开发，无论是 Python/C++/Golang 都是用 VSCode Remote WSL 进行开发的，体验非常好。&lt;/p>
+&lt;p>WSL2虽然日常轻度使用已经很流畅舒适了，在网络配置方面有一些绕不开的深坑。&lt;/p>
+&lt;p>首先需要了解以下内容：&lt;/p>
+&lt;div class="admonition info">&lt;p class="admonition-title">前置知识&lt;/p>
+&lt;ul>
+&lt;li>Windows 和 WSL2 算是在同一个局域网内，这个局域网是由 Hyper-V 创建的。&lt;/li>
+&lt;li>WSL2 使用的网络适配器是 ‘Default Hyper-V Switch’，这个适配器每次重启都会被删除重建，这就是 WSL2 为什么 IP 不固定的原因。&lt;/li>
+&lt;li>WSL2 内有些微软特意做的东西：
+向 WSL2 的 IP 发送的请求都会被转发到 Windows 的 IP 上，但是这个时灵时不灵。&lt;/li>
+&lt;/ul>
+&lt;/div>
+&lt;p>既然是开发工具，免不了要连GitHub，为了加快访问速度，自然就要WSL2 中连接到主机代理让 WSL2 里能连上 Windows 上的代理软件。&lt;/p>
+&lt;p>目前采用的方式流程是：&lt;/p>
+&lt;ol>
+&lt;li>获取 Windows 的 ip&lt;/li>
+&lt;li>Windows 上的代理软件允许局域网访问&lt;/li>
+&lt;li>设置 WSL2 的代理&lt;/li>
+&lt;/ol>
+&lt;h2 id="获取主机的-ip">获取主机的 ip&lt;/h2>
+&lt;p>由于 WSL2 是使用 Hyper-V 虚拟机实现的，也就不能跟 Windows 共享同一个 localhost 了，而且每次重启 ip 都会变。目前在 WSL 中可以用以下两个命令来获取主机的 ip:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">ip route &lt;span class="p">|&lt;/span> grep default &lt;span class="p">|&lt;/span> awk &lt;span class="s1">&amp;#39;{print $3}&amp;#39;&lt;/span>
+&lt;span class="c1"># 或者&lt;/span>
+cat /etc/resolv.conf &lt;span class="p">|&lt;/span> grep nameserver &lt;span class="p">|&lt;/span> awk &lt;span class="s1">&amp;#39;{ print $2 }&amp;#39;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>原理参考: &lt;a href="https://docs.microsoft.com/en-us/windows/wsl/wsl2-ux-changes#accessing-network-applications">User Experience Changes Between WSL 1 and WSL 2&lt;/a>&lt;/p>
+&lt;h2 id="设置代理">设置代理&lt;/h2>
+&lt;p>Windows 的 IP 都已经拿到了，比如说我的代理软件是监听在 7890 端口的，那我只要设置代理链接为 $windows_ip:7890 即可。&lt;/p>
+&lt;p>我目前采用在.bashrc中增加配置&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="nb">export&lt;/span> &lt;span class="nv">windows_ip&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>ip route &lt;span class="p">|&lt;/span> grep default &lt;span class="p">|&lt;/span> awk &lt;span class="s1">&amp;#39;{print $3}&amp;#39;&lt;/span>&lt;span class="k">)&lt;/span>
+git config --global http.https://github.com.proxy http://&lt;span class="nv">$windows_ip&lt;/span>:7890
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>不要忘了source .bashrc&lt;/p>
+&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://lengthmin.me/posts/wsl2-network-tricks/">WSL2 的一些网络访问问题&lt;/a>&lt;/p></description></item><item><title>好物推荐，Chrome插件测评</title><link>https://lawrshen.github.io/post/chrome-plugins/</link><pubDate>Wed, 11 Aug 2021 19:41:47 +0800</pubDate><guid>https://lawrshen.github.io/post/chrome-plugins/</guid><description>&lt;p>Chrome浏览器常为人乐道的一点是拥有丰富的插件，除了通常推荐的如&lt;code>Adblock&lt;/code>外，这里给出一些由日常衍生而来的一些痛点解决问题所发现的好用插件。&lt;/p>
+&lt;h1 id="网站黑名单-ublacklist">网站黑名单 uBlacklist&lt;/h1>
+&lt;p>起因是在搜索CS相关问题时候，遇到了qastack这个李鬼，是一个爬取stack overflow的引流网站，详见&lt;a href="https://github.com/danny0838/content-farm-terminator/issues/42">issue 42&lt;/a>，严重阻碍了获取高质量问题解决方法，加之一些额外的垃圾网站非常烦人，&lt;code>uBlacklist&lt;/code>是一个好用的网站黑名单插件，同时还能方便找到其他人整理的屏蔽列表。目前笔者已经把qastack和codenong网站完全屏蔽。&lt;/p></description></item><item><title>如何使用 heredoc 作为一个文本编辑器[译]</title><link>https://lawrshen.github.io/post/heredoc/</link><pubDate>Wed, 11 Aug 2021 19:38:26 +0800</pubDate><guid>https://lawrshen.github.io/post/heredoc/</guid><description>&lt;p>项目里看到了一种shell脚本新奇的写法，找到一篇通俗易懂的介绍，引用于此。&lt;/p>
+&lt;p>原文链接：&lt;a href="https://opensource.com/article/20/12/heredoc">How to use heredoc as a text editor&lt;/a>&lt;/p>
+&lt;blockquote>
+&lt;p>这个不起眼的终端功能在紧要关头提供一个文本编辑器。&lt;/p>
+&lt;/blockquote>
+&lt;p>在 Linux 和 Unix 的 shell 中有一个不为人知的功能，它能让你用 cat 命令打开一个 do-while 循环。它被称为 heredoc，无论你使用什么 shell，它都能让你或多或少地拥有一个文本编辑器。它的语法是：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">$ cat &amp;lt;&amp;lt; EOF &amp;gt;&amp;gt; example.txt
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>中间的字符串（EOF），本质上是一个停止循环的条件。也就是说，如果你在一行中单独输入它，循环就会结束。在循环过程中，无论你在终端中输入什么，都会被管道传送到目标文件中（在本例中）。&lt;/p>
+&lt;h1 id="安装">安装&lt;/h1>
+&lt;p>只要你有一个终端，你就能够启动 heredoc。我在 Bash、tsh 和 Korn shell 中使用过这个语法技巧。&lt;/p>
+&lt;h1 id="使用-heredoc">使用 heredoc&lt;/h1>
+&lt;p>要打开一个 heredoc “会话”，你可以使用带重定向的 cat 命令。首先用终止字符串（常见约定是 EOF，代表 “End Of File”，但它实际上可以是任何字符串）指向 cat 命令。在终止字符串之后，将输出重定向到一个目标文件。然后，你就可以直接在终端中输入了，可以使用最常见的 shell 键盘快捷键来处理你的工作。当你在一行上输入你指定的终止字符串时，你的会话就结束了。你可以通过唯一的提示符（通常是 &amp;gt;）知道你是在一个 heredoc 循环中。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">$ cat &lt;span class="s">&amp;lt;&amp;lt; EOF &amp;gt;&amp;gt; example.txt
+&lt;/span>&lt;span class="s">&amp;gt; Everything you type here will be placed into example.txt when I type EOF&lt;/span> on a line by itself. Until &lt;span class="k">then&lt;/span>, you can type...
+&amp;gt;
+&amp;gt; whatever...
+&amp;gt;
+&amp;gt; you want to type.
+&amp;gt;
+&amp;gt; EOF
+$
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>在终端等待 EOF 时，你输入的所有内容都会被放入目标文件中，提示符被忽略，EOF 本身也不是文件的一部分。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">Everything you &lt;span class="nb">type&lt;/span> here will be placed into example.txt when I &lt;span class="nb">type&lt;/span> EOF on a line by itself. Until &lt;span class="k">then&lt;/span>, you can type...
+whatever...
+you want to type.
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>在现实中，你可能不会用 heredoc 语法来代替一个正常的文本编辑器。它是一个很好的快速处理方式，可以输入多行，但超过 10 行左右就开始限制它的作用了。例如，如果不触发你 shell 的 history 功能，你就不能编辑以前的行。根据你的 shell 和配置，你可能需要先按向上键，然后按向下键来找回你的文本，然后用 Ctrl+B 来后退。&lt;/p>
+&lt;p>你的 shell 的大部分功能都能正常工作，但可能没有撤销功能，也没有什么错误恢复功能。&lt;/p>
+&lt;p>此外，即使是最简安装的系统，可能也至少安装了 Vi 或 ed。&lt;/p>
+&lt;p>然而 heredoc 还是很有用的！它比 echo 更灵活，当你在编写 shell 脚本时，它是不可缺少的。例如，想象一下你正在编写一个安装脚本，以便你可以自动安装一组自定义应用。其中一个应用没有生成 .dekstop 文件，所以它不会出现在你的应用菜单中。为了解决这个问题，你决定在安装时生成一个 .desktop 文件。&lt;/p>
+&lt;p>与其编写一个 .desktop 文件，然后作为安装脚本的外部依赖，不如在安装脚本中使用 heredoc：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="cp">#!/bin/sh
+&lt;/span>&lt;span class="cp">&lt;/span>
+&lt;span class="nv">VERSION&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">VERSION&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="nv">x&lt;/span>&lt;span class="p">.y.z&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="nv">PKGNAM&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">VERSION&lt;/span>&lt;span class="k">:-&lt;/span>&lt;span class="nv">example&lt;/span>&lt;span class="si">}&lt;/span>
+&lt;span class="nv">PKG&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">PKGNAM&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>-&lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">VERSION&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>-&lt;span class="sb">`&lt;/span>arch&lt;span class="sb">`&lt;/span>.tgz
+&lt;span class="c1"># download package&lt;/span>
+wget &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">PKG&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+tar txvf &lt;span class="s2">&amp;#34;&lt;/span>&lt;span class="si">${&lt;/span>&lt;span class="nv">PKG&lt;/span>&lt;span class="si">}&lt;/span>&lt;span class="s2">&amp;#34;&lt;/span>
+&lt;span class="c1"># use here doc to create missing .desktop file&lt;/span>
+cat &lt;span class="s">&amp;lt;&amp;lt; EOF &amp;gt;&amp;gt; $HOME/.local/share/applications/example.desktop
+&lt;/span>&lt;span class="s">[Desktop Entry]
+&lt;/span>&lt;span class="s">Version=1.0
+&lt;/span>&lt;span class="s">Type=Application
+&lt;/span>&lt;span class="s">Name=&amp;#34;${PKGNAM}&amp;#34;
+&lt;/span>&lt;span class="s">Comment=&amp;#34;${PKGNAM}&amp;#34;
+&lt;/span>&lt;span class="s">Exec=&amp;#34;${PKGNAM}&amp;#34; %F
+&lt;/span>&lt;span class="s">EOF&lt;/span>
+&lt;span class="c1"># insert the rest of an install script...&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>你自动地将文本输入到了一个文件中，而不需要文本编辑器（当然，除了你用来写脚本的那个）。下面是生成的 .desktop 文件的样子：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="o">[&lt;/span>Desktop Entry&lt;span class="o">]&lt;/span>
+&lt;span class="nv">Version&lt;/span>&lt;span class="o">=&lt;/span>1.0
+&lt;span class="nv">Type&lt;/span>&lt;span class="o">=&lt;/span>Application
+&lt;span class="nv">Name&lt;/span>&lt;span class="o">=&lt;/span>example
+&lt;span class="nv">Comment&lt;/span>&lt;span class="o">=&lt;/span>example
+&lt;span class="nv">Exec&lt;/span>&lt;span class="o">=&lt;/span>example %F
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>正如你所看到的，你可以在 heredoc 中使用变量，而且它们得到了正确的解析。EOF 字符串并没有出现在文件中，它只是标志着 heredoc 的结束。&lt;/p>
+&lt;h1 id="比-echo-更好">比 echo 更好&lt;/h1>
+&lt;p>heredoc 技术通常被认为比 echo 或 printf 更容易，因为一旦你“进入”了文档，你就可以自由地做任何你想做的事情。从这个意义上说，它是自由的，但与合适的文本编辑器相比，它是有限的。&lt;/p>
+&lt;p>使用 heredoc 来做快速笔记和 shell 脚本，再也不用为如何动态生成配置文件而烦恼了。&lt;/p></description></item><item><title>你们仍未掌握那天所学的 git 知识</title><link>https://lawrshen.github.io/post/git-tricks/</link><pubDate>Sun, 08 Aug 2021 23:28:42 +0800</pubDate><guid>https://lawrshen.github.io/post/git-tricks/</guid><description>&lt;h1 id="config">config&lt;/h1>
+&lt;h2 id="git设置代理">git设置代理&lt;/h2>
+&lt;p>众所周知的原因，为了提高git clone大型开源社区平台github的访问速度，通过查询工具的端口号（port），在git终端设置github.com代理：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="c1"># general&lt;/span>
+git config --global http.url.proxy protocol://127.0.0.1:port
+&lt;span class="c1"># https proxy&lt;/span>
+git config --global http.https://github.com.proxy http://127.0.0.1:port
+&lt;span class="c1"># or sock5 proxy&lt;/span>
+git config --global http.https://github.com.proxy socks5://127.0.0.1:port
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="admonition info">&lt;p class="admonition-title">误解&lt;/p>
+&lt;p>Git 不认 https.proxy ，设置 http.proxy 就可以支持 https 了。&lt;/p>
+&lt;/div>
+&lt;h2 id="查看配置">查看配置&lt;/h2>
+&lt;p>可以查看&lt;code>.gitconfig&lt;/code>文件，或者在命令行列出：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">git config --list
+&lt;span class="c1">#expect&lt;/span>
+http.https://github.com.proxy&lt;span class="o">=&lt;/span>http://127.0.0.1:port
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="取消方式">取消方式&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">git config --global --unset http.https://github.com.proxy
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="todo">todo&lt;/h2>
+&lt;p>wsl2的网络环境和主机有所不同，直接用以上&lt;code>http.proxy&lt;/code>无法连接，目前两种方法，一是采用了&lt;code>https.proxy&lt;/code>和clash支持的&lt;code>socks5&lt;/code>协议勉强使用，原理不明，二可以参考新的wsl2网络配置&lt;a href="../wsl-net">方式&lt;/a>。&lt;/p>
+&lt;h1 id="command">command&lt;/h1>
+&lt;p>除了 git add commit push之外还需要知道这些：&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="https://atlas-comstock.github.io//2017/06/18/TheGitYouShouldKnow/">你们仍未掌握那天所学的 git 知识&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://kinboyw.github.io/2019/04/09/Git-%E5%8E%8B%E7%BC%A9%E5%A4%9A%E4%B8%AAcommit%E4%B8%BA%E5%8D%95%E4%B8%AAcommit/">git rebase 美化 commit&lt;/a>&lt;/li>
+&lt;li>当跟踪大文件（一般为测试文件时）可以使用lfs建立索引，使用&lt;code>git lfs track DIR&lt;/code>。&lt;/li>
+&lt;li>Git的底层并没有采用 CVS、SVN 底层所采用的那套增量式文件系统，而是采用一套自行维护的存储文件系统。当文件变动发生提交时，该文件系统存储的不是文件的差异信息，而是文件快照，即整个文件内容，并保存指向快照的索引。为了减小git太多导致的过于臃肿，可以使用&lt;code>git gc&lt;/code>只保留文件之间差异信息。&lt;/li>
+&lt;/ol>
+&lt;h1 id="建议">建议&lt;/h1>
+&lt;p>和任何一门语言一样，学习git最好的方法还是实战中多用它！真正接触项目并在生产环境中使用git对其学习更有立竿见影的功效。&lt;/p>
+&lt;h1 id="reference">reference&lt;/h1>
+&lt;p>&lt;a href="https://ericclose.github.io/git-proxy-config.html">一文让你了解如何为 Git 设置代理&lt;/a>&lt;/p></description></item><item><title>使用WSL2安装使用Gitbook</title><link>https://lawrshen.github.io/post/wsl-gitbook/</link><pubDate>Sat, 07 Aug 2021 22:29:39 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl-gitbook/</guid><description>&lt;h1 id="环境准备">环境准备&lt;/h1>
+&lt;p>我的gitbook是在wsl2上安装Ubuntu18后install的，开始时换完源一穷二白，直接命令行：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">sudo apt install npm
+npm install -g gitbook-cli
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>由于wsl的root和user一开始我的配置问题，出现了permission 问题（&lt;code>Error: EACCES: permission denied&lt;/code>），于是着手修改权限：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">sudo chown -R &lt;span class="nv">$USER&lt;/span> /usr/local/lib/node_modules
+sudo chown -R &lt;span class="nv">$USER&lt;/span> /usr/local/bin
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>再运行&lt;code>npm install -g gitbook-cli&lt;/code>就可以顺利安装了，&lt;code>gitbook [-V/--version]&lt;/code>查看版本，&lt;code>gitbook help&lt;/code>查看手册。&lt;/p>
+&lt;hr>
+&lt;p>我目前版本是&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">node v8.10.0
+npm v3.5.2
+CLI version: 2.3.2
+GitBook version: 3.2.3
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;hr>
+&lt;h2 id="关于npm国内换源">关于npm国内换源&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">npm config &lt;span class="nb">set&lt;/span> registry https://registry.npm.taobao.org
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="检测是否修改成功">检测是否修改成功&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">npm config get registry
+&lt;span class="c1">#- npm info express&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="恢复原来的镜像">恢复原来的镜像&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">npm config &lt;span class="nb">set&lt;/span> registry https://registry.npmjs.org/
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="插件使用">插件使用&lt;/h1>
+&lt;p>如安装支持中文搜索的插件：&lt;code>npm install gitbook-plugin-search-pro&lt;/code>，使用 &lt;code>gitbook install&lt;/code> 会安装全部插件。&lt;/p>
+&lt;p>部分插件安装了老版本 &lt;a href="mailto:github@2.0.0">github@2.0.0&lt;/a>&lt;/p>
+&lt;h1 id="卸载方法">卸载方法&lt;/h1>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">npm uninstall -g gitbook-cli
+npm cache clean &lt;span class="o">[&lt;/span>-f/--force&lt;span class="o">]&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="附录-appendix">附录 appendix&lt;/h1>
+&lt;h2 id="插件">插件&lt;/h2>
+&lt;p>&lt;a href="https://segmentfault.com/a/1190000019806829">常用插件1&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://python-book.windard.com/Complainants.html">常用插件2&lt;/a>&lt;/p>
+&lt;h2 id="demo">demo&lt;/h2>
+&lt;p>&lt;a href="https://lawrshen.github.io/CS-foundation-courses/">课程笔记&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://njucs-peers-tutors.github.io/NJUCS-FAQs/">NJUCS FAQs&lt;/a>&lt;/p></description></item><item><title>About</title><link>https://lawrshen.github.io/about/</link><pubDate>Sat, 07 Aug 2021 20:43:00 +0800</pubDate><guid>https://lawrshen.github.io/about/</guid><description>&lt;p>I am an undergraduate student at Nanjing University, pursuing Bachelor&amp;rsquo;s Degree of Computer Science.&lt;/p>
+&lt;p>You can find me in &lt;a href="https://github.com/lawrshen">github&lt;/a>.&lt;/p>
+&lt;h1 id="skills">Skills&lt;/h1>
+&lt;ul>
+&lt;li>Programming Language: C/C++, Golang&lt;/li>
+&lt;li>Production Tools: Git, Docker, LaTeX, Markdown&lt;/li>
+&lt;/ul>
+&lt;h1 id="friends">Friends&lt;/h1>
+&lt;ul>
+&lt;li>&lt;a href="https://cardigan1008.fun/">cardigan1008&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>你好 世界</title><link>https://lawrshen.github.io/post/hello-world/</link><pubDate>Sat, 07 Aug 2021 18:37:09 +0800</pubDate><guid>https://lawrshen.github.io/post/hello-world/</guid><description>&lt;h1 id="hello-world">Hello world&lt;/h1>
+&lt;p>编程里，打出&lt;code>hello world&lt;/code>就算是开始了新的一门语言学习。&lt;/p>
+&lt;p>从hexo到hugo框架，原博客迁移至此，试着继续写点小东西。&lt;/p></description></item><item><title>堆的应用：动态找寻中位数</title><link>https://lawrshen.github.io/post/heap-mid/</link><pubDate>Wed, 03 Feb 2021 17:43:37 +0800</pubDate><guid>https://lawrshen.github.io/post/heap-mid/</guid><description>&lt;blockquote>
+&lt;p>《算法设计与分析（第2版）》黄宇著 14章 堆与偏序关系&lt;/p>
+&lt;p>14.6 有一组元素，它们不断地被&lt;strong>动态加入和删除&lt;/strong>，但是我们需要随时找出当前&lt;strong>所有元素的中位数&lt;/strong>。为此，请设计一个数据结构，以支持&lt;strong>对数时间&lt;/strong>的插入、删除和&lt;strong>常数时间&lt;/strong>的找出中位数(提示:利用两个堆来实现该数据结构)。&lt;/p>
+&lt;/blockquote>
+&lt;p>2021.2.5更新：本文属于对顶堆求数据量第k大数的特例：求中位数，基本思想和代码可以从下述特例中泛化。&lt;/p>
+&lt;hr>
+&lt;p>​ 首先，我们思考一下中位数的性质：如果一个数是中位数，那么在这个数组中，&lt;strong>大于&lt;/strong>中位数的数目和&lt;strong>小于&lt;/strong>中位数的数目，要么&lt;strong>相等&lt;/strong>，要么就&lt;strong>相差一&lt;/strong>。&lt;/p>
+&lt;p>​ 我们自然可以考虑到利用&lt;strong>堆&lt;/strong>维护这个数据结构，大顶堆存放&lt;strong>前半&lt;/strong>小的数，小顶堆存放&lt;strong>后半&lt;/strong>大的数。&lt;/p>
+&lt;p>​ C++ 优先队列实现：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="n">priority_queue&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vector&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">greater&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&amp;gt;&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">priority_queue&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>​ 分以下两种情况：&lt;/p>
+&lt;p>当总数&lt;strong>奇&lt;/strong>数个时，大顶堆比小顶堆多一个元素，中位数就是&lt;strong>大顶堆堆顶&lt;/strong>。&lt;/p>
+&lt;p>当总数&lt;strong>偶&lt;/strong>数个时，大顶堆比小顶堆元素一样多，中位数就是&lt;strong>大顶堆和小顶堆堆顶的平均数&lt;/strong>。&lt;/p>
+&lt;p>​&lt;/p>
+&lt;p>接下来我们考虑维护这个动态找寻中位数的数据结构 &lt;strong>MedianFinder&lt;/strong> 接口如下：&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>insert(num)：将一个数 num &lt;strong>加入&lt;/strong>数据结构；&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>erase(num)： 将一个数 num &lt;strong>移出&lt;/strong>数据结构；&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>getMedian()：返回当前数据结构中所有数的&lt;strong>中位数&lt;/strong>。&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>getMedian() 就如上所说：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="kt">double&lt;/span> &lt;span class="nf">getMedian&lt;/span>&lt;span class="p">(){&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="kt">double&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span> &lt;span class="o">/&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="c1">//防范int溢出，增强鲁棒性
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">else&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">double&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>下面主要分析insert(num) 与 erase(num) 。&lt;/p>
+&lt;h3 id="insertnum">insert(num)&lt;/h3>
+&lt;p>对于insert(num)而言，初始堆全空情况num加入大顶堆，然后加入的 num 与大顶堆顶元素比较，&lt;strong>num 较小加入小顶堆，更大加入大顶堆。&lt;strong>insert(num)之后还要&lt;/strong>注意保持两个堆的相对数量关系&lt;/strong>。即包含元素&lt;code>数量相等&lt;/code>，或者储存了小半的&lt;code>大顶堆多一个元素&lt;/code>。当&lt;strong>初次失去平衡&lt;/strong>也即 &lt;code>大顶堆比小顶堆多了两个元素&lt;/code> 或 &lt;code>小顶堆比大顶堆多了一个元素&lt;/code> 时把堆顶转移。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="kt">void&lt;/span> &lt;span class="nf">makebalance&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">){&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">){&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>有了辅助函数&lt;code>makebalance()&lt;/code>后，insert(num)就可以给出这样的参考实现了：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="kt">void&lt;/span> &lt;span class="nf">insert&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">else&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">topnum&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">topnum&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="n">makebalance&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="erasenum">erase(num)&lt;/h3>
+&lt;p>​ 由于堆是不支持移出非堆顶元素这一操作的，因此我们可以考虑使用「延迟删除」的技巧，即：&lt;/p>
+&lt;blockquote>
+&lt;p>当我们需要移出优先队列中的某个元素时，我们只将这个删除操作「记录」下来，而不去真的删除这个元素。当这个元素出现在大顶堆或小顶堆堆顶时，我们再去将其移出。&lt;/p>
+&lt;/blockquote>
+&lt;p>​ 「延迟删除」使用到的辅助数据结构一般为&lt;strong>哈希表 delayed&lt;/strong>，其中的每个键值对 (num,freq)，表示元素 num 还需要被删除 freq 次。&lt;/p>
+&lt;p>​ C++ 哈希表实现：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="n">unordered_map&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">delayed&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>​ 增添辅助函数&lt;code>prune(T &amp;amp;heap)&lt;/code>对每次堆顶改变后的堆进行修剪。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="k">template&lt;/span> &lt;span class="o">&amp;lt;&lt;/span>&lt;span class="k">typename&lt;/span> &lt;span class="n">T&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">T&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="n">heap&lt;/span>&lt;span class="p">){&lt;/span>
+&lt;span class="k">while&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">!&lt;/span>&lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">()){&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">delayed&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">count&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">)){&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">erase&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">break&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>​ 结合&lt;code>prune()&lt;/code>和&lt;code>makebalance()&lt;/code>之后erase(num)的实现就容易了，要注意的一点是因为「延迟删除」，堆的 size 不再是当前真正的堆中元素数量，因为有一些应该要被删除的还暂时存放在堆之中，所以再设置全局变量maxSize，minSize，每当heap进行push时Size++，每当pop时Size&amp;ndash;。根据Size做出大小判断。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="kt">void&lt;/span> &lt;span class="nf">erase&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="o">&amp;lt;=&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">()){&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="n">minSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="n">makebalance&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>​ 全局变量Size的思想对之前insert(num) 等函数皆同理，对前面一致改写后给出最后的参考实现&lt;code>MedianFinder&lt;/code>如下：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;span class="lnt">43
+&lt;/span>&lt;span class="lnt">44
+&lt;/span>&lt;span class="lnt">45
+&lt;/span>&lt;span class="lnt">46
+&lt;/span>&lt;span class="lnt">47
+&lt;/span>&lt;span class="lnt">48
+&lt;/span>&lt;span class="lnt">49
+&lt;/span>&lt;span class="lnt">50
+&lt;/span>&lt;span class="lnt">51
+&lt;/span>&lt;span class="lnt">52
+&lt;/span>&lt;span class="lnt">53
+&lt;/span>&lt;span class="lnt">54
+&lt;/span>&lt;span class="lnt">55
+&lt;/span>&lt;span class="lnt">56
+&lt;/span>&lt;span class="lnt">57
+&lt;/span>&lt;span class="lnt">58
+&lt;/span>&lt;span class="lnt">59
+&lt;/span>&lt;span class="lnt">60
+&lt;/span>&lt;span class="lnt">61
+&lt;/span>&lt;span class="lnt">62
+&lt;/span>&lt;span class="lnt">63
+&lt;/span>&lt;span class="lnt">64
+&lt;/span>&lt;span class="lnt">65
+&lt;/span>&lt;span class="lnt">66
+&lt;/span>&lt;span class="lnt">67
+&lt;/span>&lt;span class="lnt">68
+&lt;/span>&lt;span class="lnt">69
+&lt;/span>&lt;span class="lnt">70
+&lt;/span>&lt;span class="lnt">71
+&lt;/span>&lt;span class="lnt">72
+&lt;/span>&lt;span class="lnt">73
+&lt;/span>&lt;span class="lnt">74
+&lt;/span>&lt;span class="lnt">75
+&lt;/span>&lt;span class="lnt">76
+&lt;/span>&lt;span class="lnt">77
+&lt;/span>&lt;span class="lnt">78
+&lt;/span>&lt;span class="lnt">79
+&lt;/span>&lt;span class="lnt">80
+&lt;/span>&lt;span class="lnt">81
+&lt;/span>&lt;span class="lnt">82
+&lt;/span>&lt;span class="lnt">83
+&lt;/span>&lt;span class="lnt">84
+&lt;/span>&lt;span class="lnt">85
+&lt;/span>&lt;span class="lnt">86
+&lt;/span>&lt;span class="lnt">87
+&lt;/span>&lt;span class="lnt">88
+&lt;/span>&lt;span class="lnt">89
+&lt;/span>&lt;span class="lnt">90
+&lt;/span>&lt;span class="lnt">91
+&lt;/span>&lt;span class="lnt">92
+&lt;/span>&lt;span class="lnt">93
+&lt;/span>&lt;span class="lnt">94
+&lt;/span>&lt;span class="lnt">95
+&lt;/span>&lt;span class="lnt">96
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="cp">#include&lt;/span> &lt;span class="cpf">&amp;lt;queue&amp;gt;&lt;/span>&lt;span class="cp">
+&lt;/span>&lt;span class="cp">#include&lt;/span> &lt;span class="cpf">&amp;lt;unordered_map&amp;gt;&lt;/span>&lt;span class="cp">
+&lt;/span>&lt;span class="cp">&lt;/span>&lt;span class="k">using&lt;/span> &lt;span class="k">namespace&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">MedianFinder&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">priority_queue&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vector&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">greater&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&amp;gt;&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">priority_queue&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">unordered_map&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">delayed&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">minSize&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="n">maxSize&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">//decrease delayed
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">template&lt;/span> &lt;span class="o">&amp;lt;&lt;/span>&lt;span class="k">typename&lt;/span> &lt;span class="n">T&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">T&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="n">heap&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">while&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="o">!&lt;/span>&lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">delayed&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">count&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">erase&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">heap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="k">break&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="nf">makebalance&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">maxSize&lt;/span> &lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">minSize&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="n">minSize&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span> &lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">maxSize&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="n">minSize&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">pop&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">minSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;span class="n">MedianFinder&lt;/span>&lt;span class="p">()&lt;/span>&lt;span class="o">:&lt;/span>&lt;span class="n">minSize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">),&lt;/span>&lt;span class="n">maxSize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">){}&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="nf">insert&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">empty&lt;/span>&lt;span class="p">()){&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="n">topnum&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">topnum&lt;/span> &lt;span class="o">&amp;lt;&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">){&lt;/span>
+&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">minSize&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="n">makebalance&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kt">void&lt;/span> &lt;span class="nf">erase&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">num&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">delayed&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span>&lt;span class="o">&amp;lt;=&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">()){&lt;/span>
+&lt;span class="n">maxSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">else&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="n">minSize&lt;/span>&lt;span class="o">--&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">num&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">prune&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="n">makebalance&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="kt">double&lt;/span> &lt;span class="nf">getMedian&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">minSize&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="n">maxSize&lt;/span> &lt;span class="p">)&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">((&lt;/span>&lt;span class="kt">double&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="n">minheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">())&lt;/span> &lt;span class="o">/&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="c1">//防范int溢出
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="k">else&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">double&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="n">maxheap&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">top&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>代码里涉及细节处理问题颇多，还是很要仔细。&lt;/p></description></item></channel></rss>
