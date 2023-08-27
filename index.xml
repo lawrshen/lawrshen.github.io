@@ -1,4 +1,81 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 17 Sep 2022 11:45:34 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>IO 模型浅谈</title><link>https://lawrshen.github.io/post/io-models/</link><pubDate>Sat, 17 Sep 2022 11:45:34 +0800</pubDate><guid>https://lawrshen.github.io/post/io-models/</guid><description>&lt;p>网络 IO 的发展过程是随着 linux 的内核演变而变化，因此网络 IO 大致可以分为如下几个阶段：&lt;/p>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sun, 27 Aug 2023 15:23:41 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Tcp三次握手与Backlog</title><link>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</link><pubDate>Sun, 27 Aug 2023 15:23:41 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</guid><description>&lt;h1 id="三次握手">三次握手&lt;/h1>
+&lt;p>服务端通过系统调用&lt;code>bind()&lt;/code>和&lt;code>listen()&lt;/code>绑定和监听socket-port，此时服务端处于 &lt;strong>LISTEN&lt;/strong> 状态，当客户端调用 &lt;code>connect()&lt;/code> 向服务端发起连接时，就进入到我们熟悉的三次握手当中。&lt;/p>
+&lt;ul>
+&lt;li>客户端向服务端发送SYN报文，同时TCP连接处于 &lt;code>SYN_SEND&lt;/code> 状态&lt;/li>
+&lt;li>服务端收到SYN报文后，会向客户端发送SYN+ACK报文，同时服务端TCP连接处于 &lt;code>SYN_RECV&lt;/code> 状态&lt;/li>
+&lt;li>客户端收到SYN+ACK报文后，会再次向服务端发送ACK报文确认连接建立，同时客户端TCP连接状态变为 &lt;code>ESTABLISHED&lt;/code>&lt;/li>
+&lt;li>服务端收到客户端的再次确认后，TCP连接也将变为ESTABLISHED&lt;/li>
+&lt;/ul>
+&lt;h1 id="全连接队列与半连接队列">全连接队列与半连接队列&lt;/h1>
+&lt;p>在三次握手过程中，服务端通过两个数据结构来维护连接状态，即syns queue (半连接队列)和accept queue (全连接队列)&lt;/p>
+&lt;ul>
+&lt;li>当服务端收到SYN报文后，会将该连接信息放到syns queue中&lt;/li>
+&lt;li>当服务端收到ACK报文后，会将这个连接从syns queue中转移到accept queue中，此时TCP连接建立完成&lt;/li>
+&lt;li>处于accept queue中的连接，服务端还要通过系统调用accept()把该套接字取走，才能进行客户端到服务端的数据传输&lt;/li>
+&lt;/ul>
+&lt;h1 id="backlog">backlog&lt;/h1>
+&lt;p>backlog用来限制全连接队列的大小，对应Linux内核参数 somaxconn，min(backlog,somaxconn)就是全连接队列的最大容量限制，两个值分别由用户和内核设置。顺带一提这也是为什么redis在某些机器上运行报错的原因，因为redis.conf设置了tcp-backlog是511。&lt;/p>
+&lt;p>半连接队列也有大小限制，对应Linux内核参数tcp_max_syn_backlog，实际大小取决于三者最小值。&lt;/p>
+&lt;p>当客户端发送SYN报文，而此时半连接队列已满时就会丢弃，客户端会进行 tcp_syn_retries 次的重试，或者到达应用层时间限制，返回 connection timeout 的异常。&lt;/p>
+&lt;p>当服务端收到第三次握手的 ACK 时，若全连接队列已满，会根据 tcp_abort_on_overflow 选择是抛弃ack还是发RST。如果抛弃ack了，类似的进行 tcp_synack_retries。&lt;/p>
+&lt;h1 id="相关linux的网络异常问题">相关Linux的网络异常问题&lt;/h1>
+&lt;ul>
+&lt;li>SYN-FLOOD：打满第一次握手的半连接队列的限制容量。&lt;/li>
+&lt;li>backlog过小，无法建立连接，导致502 bad gateway的错误&lt;/li>
+&lt;li>backlog过大，处理跟不上，导致超时，504&lt;/li>
+&lt;/ul>
+&lt;h1 id="排查工具">排查工具&lt;/h1>
+&lt;p>netstat或ss&lt;/p>
+&lt;ul>
+&lt;li>ss -lnt，若连接处于LISTEN状态，Recv-Q、Send-Q分别代表了全连接队列的连接数、容量；非LISTEN状态Recv-Q是缓冲区还未被应用程序取走的字节数，Send-Q表示还未被远端确认的字节数&lt;/li>
+&lt;li>netstat -s可以看统计信息&lt;/li>
+&lt;/ul>
+&lt;h1 id="调优策略">调优策略&lt;/h1>
+&lt;ul>
+&lt;li>高并发场景增大backlog&lt;/li>
+&lt;li>最好QPS=backlog，以免服务超时关闭，进一步导致 broken pipe&lt;/li>
+&lt;/ul></description></item><item><title>浅谈modern c++的智能指针</title><link>https://lawrshen.github.io/post/c++/smart-ptr/</link><pubDate>Fri, 13 Jan 2023 13:41:19 +0800</pubDate><guid>https://lawrshen.github.io/post/c++/smart-ptr/</guid><description>&lt;p>手动的内存管理通常被认为很麻烦切不利于程序的可读性，modern C++ 采用智能指针的方式对内存进行动态管理，本文试图对智能指针做一个简单的入门介绍。&lt;/p>
+&lt;h1 id="raii-与智能指针">RAII 与智能指针&lt;/h1>
+&lt;p>在《C++ 程序设计》一书中5.2.1提到，智能指针和资源管理息息相关，普通作用域里的变量依靠构造和析构函数完成了&lt;code>资源获取即初始化&lt;/code>（RAII, Resource Acquisition Is Initialization），对于自由分配的对象，作用域为全局空间，&lt;memory>标准库提供了智能指针来管理。&lt;/p>
+&lt;p>智能指针的核心原理如下：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C++" data-lang="C++">&lt;span class="k">template&lt;/span> &lt;span class="o">&amp;lt;&lt;/span>&lt;span class="k">typename&lt;/span> &lt;span class="n">T&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>
+&lt;span class="k">class&lt;/span> &lt;span class="nc">SmartPointer&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;span class="k">explicit&lt;/span> &lt;span class="n">SmartPointer&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">T&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">p&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="n">p_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">p&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{}&lt;/span> &lt;span class="c1">// explicit 避免由构造函数定义的隐式转换
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="o">~&lt;/span>&lt;span class="n">SmartPointer&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="k">delete&lt;/span> &lt;span class="n">p_&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;span class="k">private&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;span class="n">T&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">p_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>将资源包在对象里，并在对象的析构函数中释放资源，以此确保资源不会因为被遗忘而丢失。&lt;/p>
+&lt;h1 id="unique_ptr">unique_ptr&lt;/h1>
+&lt;p>unique_ptr 通过持有指针管理相应的对象，在 unique_ptr 作用域结束时释放资源，通常在两种情况调用对应的 deleter：&lt;/p>
+&lt;ul>
+&lt;li>unique_ptr对象消亡&lt;/li>
+&lt;li>unique_ptr被另一个指针通过 &lt;code>operator=&lt;/code> 或 &lt;code>reset()&lt;/code> 赋值。&lt;/li>
+&lt;/ul>
+&lt;h1 id="参考">参考&lt;/h1>
+&lt;ul>
+&lt;li>&lt;a href="http://chenweixiang.github.io/docs/The_C++_Programming_Language_4th_Edition_Bjarne_Stroustrup.pdf">The C++ Programming Language Fourth Edition&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://www.fluentcpp.com/2017/08/22/smart-developers-use-smart-pointers-smart-pointers-basics/">Smart developers use smart pointers&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://en.cppreference.com/w/cpp/memory/unique_ptr">cppreference&lt;/a>&lt;/li>
+&lt;/ul></description></item><item><title>IO 模型浅谈</title><link>https://lawrshen.github.io/post/net/io/io-models/</link><pubDate>Sat, 17 Sep 2022 11:45:34 +0800</pubDate><guid>https://lawrshen.github.io/post/net/io/io-models/</guid><description>&lt;p>网络 IO 的发展过程是随着 linux 的内核演变而变化，因此网络 IO 大致可以分为如下几个阶段：&lt;/p>
 &lt;ol>
 &lt;li>阻塞 IO(BIO)&lt;/li>
 &lt;li>非阻塞 IO(NIO)&lt;/li>
@@ -34,7 +111,7 @@
 &lt;li>BIO：同步阻塞式IO，服务器实现模式为&lt;strong>一个连接一个线程&lt;/strong>，即客户端有连接请求时服务器端就需要启动一个线程进行处理，如果这个连接不做任何事情会造成不必要的线程开销，当然可以通过线程池机制改善。&lt;/li>
 &lt;li>NIO：同步非阻塞式IO，服务器实现模式为&lt;strong>一个请求一个线程&lt;/strong>，即客户端发送的连接请求都会注册到多路复用器上，多路复用器轮询到连接有I/O请求时才启动一个线程进行处理。 &lt;/li>
 &lt;li>AIO(NIO.2)：异步非阻塞式IO，服务器实现模式为&lt;strong>一个有效请求一个线程&lt;/strong>，客户端的I/O请求都是由OS先完成了再通知服务器应用去启动线程进行处理。&lt;/li>
-&lt;/ul></description></item><item><title>多线程若干问</title><link>https://lawrshen.github.io/post/pthread-faq/</link><pubDate>Sat, 17 Sep 2022 10:16:50 +0800</pubDate><guid>https://lawrshen.github.io/post/pthread-faq/</guid><description>&lt;blockquote>
+&lt;/ul></description></item><item><title>多线程若干问</title><link>https://lawrshen.github.io/post/os/thread/pthread-faq/</link><pubDate>Sat, 17 Sep 2022 10:16:50 +0800</pubDate><guid>https://lawrshen.github.io/post/os/thread/pthread-faq/</guid><description>&lt;blockquote>
 &lt;p>顺序性&lt;/p>
 &lt;p>原子性&lt;/p>
 &lt;p>可见性
@@ -65,7 +142,7 @@
 &lt;p>&lt;strong>单核CPU最小值为100，最大值200&lt;/strong>&lt;/p>
 &lt;p>两个线程分别记为线程1和线程2，&lt;code>i++&lt;/code>相当于取出i的值，加1，再放回去&lt;/p>
 &lt;p>第一种极端情况：每次线程一取出i的值后CPU时间切换到线程二，线程二也取出i的值，取到的值和线程一相等，线程二给i加一后放回去，线程一也将i加一后放回去，放回去的值也相等，相当于两个线程都执行一次i++操作，i的值只增加1，这样操作100次i的值为100&lt;/p>
-&lt;p>第二种极端情况：线程一和线程二间隔操作，即线程一对&lt;code>i++&lt;/code>操作完成，把已经加一的数据放回去之后线程二再操作，轮流进行，最后每个线程都对i加了100次，i 的值为200&lt;/p></description></item><item><title>从队头阻塞看 HTTP 变迁史</title><link>https://lawrshen.github.io/post/hol/</link><pubDate>Sat, 30 Jul 2022 11:14:29 +0800</pubDate><guid>https://lawrshen.github.io/post/hol/</guid><description>&lt;p>《 &lt;a href="https://zhuanlan.zhihu.com/p/330300133">关于队头阻塞（Head-of-Line blocking），看这一篇就足够了&lt;/a>》这篇文章对队头阻塞已经讲解的很清楚了，本文从常问问题角度，梳理一下队头阻塞的问题和解决方案。&lt;/p>
+&lt;p>第二种极端情况：线程一和线程二间隔操作，即线程一对&lt;code>i++&lt;/code>操作完成，把已经加一的数据放回去之后线程二再操作，轮流进行，最后每个线程都对i加了100次，i 的值为200&lt;/p></description></item><item><title>从队头阻塞看 HTTP 变迁史</title><link>https://lawrshen.github.io/post/net/http/hol/</link><pubDate>Sat, 30 Jul 2022 11:14:29 +0800</pubDate><guid>https://lawrshen.github.io/post/net/http/hol/</guid><description>&lt;p>《 &lt;a href="https://zhuanlan.zhihu.com/p/330300133">关于队头阻塞（Head-of-Line blocking），看这一篇就足够了&lt;/a>》这篇文章对队头阻塞已经讲解的很清楚了，本文从常问问题角度，梳理一下队头阻塞的问题和解决方案。&lt;/p>
 &lt;h1 id="什么是队头阻塞head-of-line-blocking">什么是队头阻塞（Head-of-Line blocking）&lt;/h1>
 &lt;p>简单直接的定义是：&lt;/p>
 &lt;blockquote>
@@ -129,7 +206,7 @@
 &lt;li>如果其中一个文件比其他文件小得多，那么它可能会很有用，因为它将更早地下载，而不会对其他文件造成太多的延迟。&lt;/li>
 &lt;li>多路复用允许&lt;strong>改变响应的顺序&lt;/strong>，并为高优先级的响应&lt;strong>中断&lt;/strong>低优先级的响应。&lt;/li>
 &lt;/ol>
-&lt;p>因此，虽然像 12121212 这样的完全“轮询”多路复用很少是您想要的 Web 性能，但是多路复用在总体上绝对是一个有用的特性。&lt;/p></description></item><item><title>Golang map简介</title><link>https://lawrshen.github.io/post/go-map/</link><pubDate>Sat, 28 May 2022 11:51:32 +0800</pubDate><guid>https://lawrshen.github.io/post/go-map/</guid><description>&lt;p>golang 语言提供了 built-in 的 map 类型，提供 hash table 的功能。完成的特性主要有：增删查改。&lt;/p>
+&lt;p>因此，虽然像 12121212 这样的完全“轮询”多路复用很少是您想要的 Web 性能，但是多路复用在总体上绝对是一个有用的特性。&lt;/p></description></item><item><title>Golang map简介</title><link>https://lawrshen.github.io/post/golang/go-map/</link><pubDate>Sat, 28 May 2022 11:51:32 +0800</pubDate><guid>https://lawrshen.github.io/post/golang/go-map/</guid><description>&lt;p>golang 语言提供了 built-in 的 map 类型，提供 hash table 的功能。完成的特性主要有：增删查改。&lt;/p>
 &lt;h1 id="定义初始化及使用注意">定义初始化及使用注意&lt;/h1>
 &lt;div class="highlight">&lt;div class="chroma">
 &lt;table class="lntable">&lt;tr>&lt;td class="lntd">
@@ -222,7 +299,7 @@
 &lt;p>&lt;img src="../../source/go-hmap.jpg" alt="go-hmap">&lt;/p>
 &lt;h1 id="参考资料">参考资料&lt;/h1>
 &lt;p>&lt;a href="https://go.dev/blog/maps">https://go.dev/blog/maps&lt;/a>&lt;/p>
-&lt;p>&lt;a href="https://github.com/golang/go/blob/master/src/runtime/map.go">https://github.com/golang/go/blob/master/src/runtime/map.go&lt;/a>&lt;/p></description></item><item><title>分布式唯一 Id</title><link>https://lawrshen.github.io/post/id/</link><pubDate>Thu, 26 May 2022 17:55:06 +0800</pubDate><guid>https://lawrshen.github.io/post/id/</guid><description>&lt;h1 id="uuid">UUID&lt;/h1>
+&lt;p>&lt;a href="https://github.com/golang/go/blob/master/src/runtime/map.go">https://github.com/golang/go/blob/master/src/runtime/map.go&lt;/a>&lt;/p></description></item><item><title>分布式唯一 Id</title><link>https://lawrshen.github.io/post/se/id/</link><pubDate>Thu, 26 May 2022 17:55:06 +0800</pubDate><guid>https://lawrshen.github.io/post/se/id/</guid><description>&lt;h1 id="uuid">UUID&lt;/h1>
 &lt;p>universally unique identifier，统一唯一标识符，是一个128位（16字节）的数字，由算法生成，算法可以是任意的，但是算法的种类不能太多，否则就不可读。&lt;/p>
 &lt;p>缺点：&lt;/p>
 &lt;ol>
@@ -261,7 +338,7 @@
 &lt;h2 id="leaf-segment">leaf segment&lt;/h2>
 &lt;p>依赖分布式数据库自增 ID，一次取一批（segment）防止对数据库的频繁查询同时在ID耗尽前提前异步的取一批，提高效率。&lt;/p>
 &lt;h2 id="leaf-snowflake">leaf snowflake&lt;/h2>
-&lt;p>改进了 workerid，引入 zookeeper 持久顺序节点的特性。&lt;/p></description></item><item><title>Epoll 简介</title><link>https://lawrshen.github.io/post/epoll/</link><pubDate>Thu, 26 May 2022 14:54:40 +0800</pubDate><guid>https://lawrshen.github.io/post/epoll/</guid><description>&lt;p>epoll 可以说是和 poll 非常相似的一种 I/O 多路复用技术，epoll 通过监控注册的多个描述字，来进行 I/O 事件的分发处理。不同于 poll 的是，epoll 不仅提供了默认的 level-triggered（条件触发）机制，还提供了性能更为强劲的 edge-triggered（边缘触发）机制。&lt;/p>
+&lt;p>改进了 workerid，引入 zookeeper 持久顺序节点的特性。&lt;/p></description></item><item><title>Epoll 简介</title><link>https://lawrshen.github.io/post/net/io/epoll/</link><pubDate>Thu, 26 May 2022 14:54:40 +0800</pubDate><guid>https://lawrshen.github.io/post/net/io/epoll/</guid><description>&lt;p>epoll 可以说是和 poll 非常相似的一种 I/O 多路复用技术，epoll 通过监控注册的多个描述字，来进行 I/O 事件的分发处理。不同于 poll 的是，epoll 不仅提供了默认的 level-triggered（条件触发）机制，还提供了性能更为强劲的 edge-triggered（边缘触发）机制。&lt;/p>
 &lt;h1 id="工作流程">工作流程&lt;/h1>
 &lt;ol>
 &lt;li>用户进程调用epoll_create;&lt;/li>
@@ -392,7 +469,7 @@
 &lt;li>百万级连接，哈希表有镂空的空间，太浪费内存。&lt;/li>
 &lt;/ol>
 &lt;p>跳表：慢于红黑树，空间也高。&lt;/p>
-&lt;p>红黑树：经验判断，内核的其他地方如防火墙也使用红黑树，实践上看性能最优。&lt;/p></description></item><item><title>简谈TCP的可靠传输</title><link>https://lawrshen.github.io/post/tcp/</link><pubDate>Thu, 19 May 2022 10:40:25 +0800</pubDate><guid>https://lawrshen.github.io/post/tcp/</guid><description>&lt;p>计算机网络领域的经典问题回顾。主要针对 TCP 如何实现可靠传输。&lt;/p>
+&lt;p>红黑树：经验判断，内核的其他地方如防火墙也使用红黑树，实践上看性能最优。&lt;/p></description></item><item><title>简谈TCP的可靠传输</title><link>https://lawrshen.github.io/post/net/tcp/tcp/</link><pubDate>Thu, 19 May 2022 10:40:25 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tcp/</guid><description>&lt;p>计算机网络领域的经典问题回顾。主要针对 TCP 如何实现可靠传输。&lt;/p>
 &lt;h1 id="tcp-的可靠性">TCP 的可靠性&lt;/h1>
 &lt;p>TCP 协议是面向连接的、可靠的、基于字节流的传输层通信协议，传输的单位是报文段。&lt;/p>
 &lt;p>TCP 的可靠性主要依靠：建立连接的可靠性和传输过程的可靠性（拥塞控制和超时重传）。&lt;/p>
@@ -451,7 +528,7 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;p>当发送方连续收到三个重复确认时，就执行“乘法减小”算法，把ssthresh门限减半（为了预防网络发生拥塞）。但是接下去并不执行慢开始算法
 考虑到如果网络出现拥塞的话就不会收到好几个重复的确认，所以发送方现在认为网络可能没有出现拥塞。所以此时不执行慢开始算法，而是将cwnd设置为ssthresh减半后的值，然后执行拥塞避免算法，使cwnd缓慢增大。如下图：TCP Reno版本是目前使用最广泛的版本。&lt;/p>
 &lt;p>&lt;img src="../../source/tcp/cwnd-total.png" alt="">&lt;/p>
-&lt;p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。&lt;/p></description></item><item><title>Mysql 索引</title><link>https://lawrshen.github.io/post/mysql-index/</link><pubDate>Tue, 17 May 2022 21:12:24 +0800</pubDate><guid>https://lawrshen.github.io/post/mysql-index/</guid><description>&lt;p>索引是 MySQL 对查询做的一个优化，把原本杂乱无章的数据，用有序的结构组织起来，让全表扫描变成有章可循的查询。&lt;/p>
+&lt;p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。&lt;/p></description></item><item><title>Mysql 索引</title><link>https://lawrshen.github.io/post/db/mysql-index/</link><pubDate>Tue, 17 May 2022 21:12:24 +0800</pubDate><guid>https://lawrshen.github.io/post/db/mysql-index/</guid><description>&lt;p>索引是 MySQL 对查询做的一个优化，把原本杂乱无章的数据，用有序的结构组织起来，让全表扫描变成有章可循的查询。&lt;/p>
 &lt;p>索引的目的是&lt;strong>提高查找效率&lt;/strong>，对数据表的值集合进行了排序，并按照一定数据结构进行了存储。&lt;/p>
 &lt;h1 id="索引的数据结构">索引的数据结构&lt;/h1>
 &lt;p>在 MySQL 中，索引是在&lt;strong>存储引擎层&lt;/strong>实现的，而不同的存储引擎根据其业务场景特点会有不同的实现方式。&lt;/p>
@@ -522,7 +599,7 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;li>普通索引：最为平常的一种索引，没有特别限制。&lt;/li>
 &lt;li>唯一索引：该索引的字段不能有相同值，但允许有空值。&lt;/li>
 &lt;li>组合索引：由多列字段组合而成的索引，往往是为了提升查询效率而设置。&lt;/li>
-&lt;/ul></description></item><item><title>内存分配模型</title><link>https://lawrshen.github.io/post/malloc/</link><pubDate>Tue, 17 May 2022 10:55:54 +0800</pubDate><guid>https://lawrshen.github.io/post/malloc/</guid><description>&lt;p>在UNIX/C 程序中，理解如何分配和管理内存是构建健壮和可靠软件的重要基础。&lt;/p>
+&lt;/ul></description></item><item><title>内存分配模型</title><link>https://lawrshen.github.io/post/os/vm/malloc/</link><pubDate>Tue, 17 May 2022 10:55:54 +0800</pubDate><guid>https://lawrshen.github.io/post/os/vm/malloc/</guid><description>&lt;p>在UNIX/C 程序中，理解如何分配和管理内存是构建健壮和可靠软件的重要基础。&lt;/p>
 &lt;h1 id="内存类型">内存类型&lt;/h1>
 &lt;p>在运行一个C 程序的时候，会分配两种类型的内存。第一种称为&lt;code>栈内存&lt;/code>，它的申请和释放操作是编译器来隐式管理的，所以有时也称为自动（automatic）内存。&lt;/p>
 &lt;p>栈内存在程序运行过程中有编译器帮我们处理，函数处理结束，编译器释放内存，对于希望长期存在的信息，就要使用到堆内存。C语言进行堆空间分配的就是 &lt;code>malloc&lt;/code> 调用。&lt;/p>
@@ -559,7 +636,7 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;p>内存池的研究重点不是向操作系统申请内存，而是&lt;strong>对已申请到的内存的管理&lt;/strong>，这涉及到非常复杂的算法，是一个永远也研究不完的课题，除了C标准库自带的 malloc()，还有一些第三方的实现，比如 Goolge 的 tcmalloc 和 jemalloc。&lt;/p>
 &lt;h2 id="池化技术">池化技术&lt;/h2>
 &lt;p>在计算机中，有很多使用“池”这种技术的地方，除了内存池，还有连接池、线程池、对象池等。以服务器上的线程池为例，它的主要思想是：先启动若干数量的线程，让它们处于睡眠状态，当接收到客户端的请求时，唤醒池中某个睡眠的线程，让它来处理客户端的请求，当处理完这个请求，线程又进入睡眠状态。&lt;/p>
-&lt;p>所谓“池化技术”，就是程序先向系统申请过量的资源，然后自己管理，以备不时之需。之所以要申请过量的资源，是因为每次申请该资源都有较大的开销，不如提前申请好了，这样使用时就会变得非常快捷，大大提高程序运行效率。&lt;/p></description></item><item><title>表驱动法</title><link>https://lawrshen.github.io/post/table-driven/</link><pubDate>Wed, 09 Feb 2022 17:30:42 +0800</pubDate><guid>https://lawrshen.github.io/post/table-driven/</guid><description>&lt;p>表驱动法(Table-Driven Approach)简单说就是查表，目的是代替过多的条件分支语句。&lt;/p>
+&lt;p>所谓“池化技术”，就是程序先向系统申请过量的资源，然后自己管理，以备不时之需。之所以要申请过量的资源，是因为每次申请该资源都有较大的开销，不如提前申请好了，这样使用时就会变得非常快捷，大大提高程序运行效率。&lt;/p></description></item><item><title>表驱动法</title><link>https://lawrshen.github.io/post/se/table-driven/</link><pubDate>Wed, 09 Feb 2022 17:30:42 +0800</pubDate><guid>https://lawrshen.github.io/post/se/table-driven/</guid><description>&lt;p>表驱动法(Table-Driven Approach)简单说就是查表，目的是代替过多的条件分支语句。&lt;/p>
 &lt;h1 id="基本使用">基本使用&lt;/h1>
 &lt;p>表驱动法适时取用可以比复杂的逻辑代码更简单，更容易修改，而且效率更高。&lt;/p>
 &lt;p>比如说字符类型划分，比起：&lt;/p>
@@ -600,7 +677,7 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;h3 id="索引访问">索引访问&lt;/h3>
 &lt;p>key还可以通过再多建一个索引表拓展。可以有一个数据表，多个索引表。&lt;/p>
 &lt;h2 id="表格value">表格value&lt;/h2>
-&lt;p>表里除了数据外，还可以存放action，描述该action的代码/该动作的子程序的引用。比如说状态机。&lt;/p></description></item><item><title>Awk命令简介</title><link>https://lawrshen.github.io/post/awk/</link><pubDate>Mon, 08 Nov 2021 15:42:27 +0800</pubDate><guid>https://lawrshen.github.io/post/awk/</guid><description>&lt;p>最近在写测试脚本的需求时深感自己Linux命令知识的单薄，有很多常见且强大的命令不会使用，抓紧学习，在这记录一下&lt;code>awk&lt;/code>命令解析。&lt;/p>
+&lt;p>表里除了数据外，还可以存放action，描述该action的代码/该动作的子程序的引用。比如说状态机。&lt;/p></description></item><item><title>Awk命令简介</title><link>https://lawrshen.github.io/post/cmd/awk/</link><pubDate>Mon, 08 Nov 2021 15:42:27 +0800</pubDate><guid>https://lawrshen.github.io/post/cmd/awk/</guid><description>&lt;p>最近在写测试脚本的需求时深感自己Linux命令知识的单薄，有很多常见且强大的命令不会使用，抓紧学习，在这记录一下&lt;code>awk&lt;/code>命令解析。&lt;/p>
 &lt;p>谈到&lt;code>awk&lt;/code>自然还会提到&lt;code>grep&lt;/code>和&lt;code>sed&lt;/code>，他们都是Linux下常用的文本处理工具，grep&lt;sup id="fnref:1">&lt;a href="#fn:1" class="footnote-ref" role="doc-noteref">1&lt;/a>&lt;/sup>主要使用正则做文本搜索，并把匹配内容打印出来，而&lt;strong>替换&lt;/strong>匹配内容功能可以由sed&lt;sup id="fnref:2">&lt;a href="#fn:2" class="footnote-ref" role="doc-noteref">2&lt;/a>&lt;/sup>完成。而最早awk&lt;sup id="fnref:3">&lt;a href="#fn:3" class="footnote-ref" role="doc-noteref">3&lt;/a>&lt;/sup>目的是文本处理，基础是&lt;a href="https://zh.wikipedia.org/wiki/AWK">“只要在输入数据中有模式匹配，就执行一系列指令”&lt;/a>，这听着挺编译原理语义分析的。AWK还具有完全属于其本身的语法，可以支持循环，数组这样复杂的程序设计，比较擅长处理&lt;strong>格式化的文本&lt;/strong>，比如 日志、csv 格式数据。&lt;/p>
 &lt;h1 id="awk程序结构">AWK程序结构&lt;/h1>
 &lt;p>AWK程序是由一系列&lt;code>模式--动作&lt;/code>对组成的，写做&lt;/p>
@@ -690,7 +767,7 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;p>awk名称来源于三个发明人首字母&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
 &lt;/li>
 &lt;/ol>
-&lt;/section></description></item><item><title>计算机网络缺失的一课 Http</title><link>https://lawrshen.github.io/post/http/</link><pubDate>Sun, 19 Sep 2021 15:47:09 +0800</pubDate><guid>https://lawrshen.github.io/post/http/</guid><description>&lt;div class="admonition info">&lt;p class="admonition-title">背景&lt;/p>
+&lt;/section></description></item><item><title>计算机网络缺失的一课 Http</title><link>https://lawrshen.github.io/post/net/http/http/</link><pubDate>Sun, 19 Sep 2021 15:47:09 +0800</pubDate><guid>https://lawrshen.github.io/post/net/http/http/</guid><description>&lt;div class="admonition info">&lt;p class="admonition-title">背景&lt;/p>
 &lt;p>上计网课的时候应用层协议蜻蜓点水的一笔带过了，期末也不设置考点，这块内容难免有所薄弱，但http协议作为常见的应用层协议，有一个基础的掌握还是有必要的。&lt;/p>
 &lt;/div>
 &lt;p>&lt;img src="../../source/http/HTTP1-3.jpg" alt="HTTP1-3">&lt;/p>
@@ -751,8 +828,114 @@ body//请求正文
 &lt;/ul>
 &lt;p>内容协议请求头和对应的响应头对应关系如下:&lt;/p>
 &lt;p>&lt;img src="../../source/http/http-req-res.image" alt="http-req-res">&lt;/p>
+&lt;h1 id="http-框架">HTTP 框架&lt;/h1>
+&lt;p>HTTP 协议是当今使用最为广泛的协议之一，HTTP是前(客户)端与服务端通信的基础协议，大家在学校课程中和大作业中应该或多或少都接触过。像这一张图就是一个前后端分离的一个流程图了，前后端之间通过 HTTP 请求进行通信。那 HTTP 框架负责的就是对 HTTP 请求的解析、根据对应的路由选择对应的后端逻辑了，也就是图上标出来的这些。除了在学校中的使用，HTTP 在企业实际业务场景中也使用广泛，目前字节跳动内部的 HTTP 服务达上万个。然而很多学校会简单讲一下 http 协议是什么，并不会很深入的讲解，同学们考试稍微看一看就可以过了。在大作业中也只是用到 HTTP 框架，保证本地可以演示出正确的 case 就 OK 了，对于 HTTP 框架的内部完全不了解，那这样在真是的工作场景中万万不足够的。那这门课我希望能够带大家了解一下 HTTP 框架的设计与实现，知道 HTTP 框架为什么要这么做，之后呢能够更好的使用 HTTP 框架开发项目，甚至说对大家的其他项目也希望有所帮助。&lt;/p>
+&lt;p>那关于课程目录呢，这门课我会首先带领大家熟悉一下 HTTP 协议的相关的知识，复习一下学校里学过的只是知识，也为之后协议的优化打下基础。在了解了协议之后之后会给大家介绍一下一个HTTP框架是如何设计与实现的，应该考虑哪些点，这部分也是本课程的一个重点。那这部分我们可以让一个框架 run 起来，不管白猫黑猫，先逮着耗子。那 run 起来之后我们还需要让框架有一个高性能。第三部分相比起前两部分可能要稍微难一点，是我们在真实场景中针对 HTTP 框架所做的一些优化实践，同学们平时在设计接口的时候也可以根据这些优化的点，了解框架为了解析 HTTP 协议的一些痛点，设计出高效的接口，而且这部分优化手段也是通用的，同学们在平时的工程中也可以使用这些手段。最后一部分，我们正在解决的一些难题，以及我工作后主要在做的一些事情。&lt;/p>
+&lt;p>&lt;img src="../../source/http/http-framework.image" alt="http-framework">&lt;/p>
+&lt;h1 id="一个常见的-post-请求在协议层做了什么">一个常见的 post 请求在协议层做了什么？&lt;/h1>
+&lt;p>那我们既然看到协议里面有什么了之后，我们可以把刚刚我们看到的东西把它总结下来，首先是一个请求行，状态行，就是我们对应的 first line. 然后之后就是一些元数据请求头响应头。最后就是一个再再往后的话就是一个请求体响应体。 那针对我们的请求行。其实刚刚我们也看到了，它是由方法名、 URL 和协议版本组成，那方法名其实就比较多了，我们常见的方法名就 get get 就是我们 htp 0.9 里面唯一的一个方法。然后之后我们在 1.0 里面扩充了 header 和 post 然后 1.1 里面又陆陆续续扩充了 5 个，然后从 put 开始到 trace 然后最终到一个patch。patch的话其实它是在 1.1 之后额外新增的一个方法名。但是它因为使用得比较广泛，我们把它列在了这里. patch 的话其实它的语义跟我们的 put 其实是非常类似的。这里有同学清楚这边我们的 patch 和 put具体有些什么具体的区别吗？如果了解的话可以打在那个聊天窗。OKOK 没错， patch 的话就是我们的部分更新以及我们的 put 它的语义是完整地更新，所以这就是它的一个比较细微的一个区别在这里了（PUT 是幂等的，而 PATCH 不是幂等的。）。 那状态行的话其实刚刚也看到了，也是一个比较经典的三段式，就是我们的协议版本状态码以状态码描述。 这边就不再过多地赘述了，相信大家对这个已经非常的熟悉了。然后接下来是我们的请求头响应头其实也是一个非常清晰的一个划分。我们主要是分为协议约定的相关的。比如说我们刚刚看到的 content 就是我们指定我们的 body 有多少字节，然后以及业务相关的，那就是我们自己定义的需要传输传递的一些源数据了。好的，然后最后是请强响应体响应体，这就不再继续在这里展开去描述了。&lt;/p>
+&lt;h1 id="http-框架的设计与实现">HTTP 框架的设计与实现&lt;/h1>
+&lt;p>网络协议天然的分层设计，实现了专注性、拓展性和复用性。&lt;/p>
+&lt;p>HTTP架构整体上分五层，层与层之间使用接口耦合。&lt;/p>
+&lt;ol>
+&lt;li>暴露在最外面的就是应用层，和用户直接打交道，对请求抽象，例如：request、response、context。这一层也会提供一些丰富的易用的API。&lt;/li>
+&lt;li>下一层就是中间件层，可以对请求有一些预处理和后处理的逻辑。像我们可以打一些 accesslog,打一些耗时的点，其他中间件比如 Reacovery 中间件用于捕获 Panic。&lt;/li>
+&lt;li>之后是路由层，注册、路由寻址&lt;/li>
+&lt;li>再接下来是协议层，支持多种协议&lt;/li>
+&lt;li>最后是网络层，不同网络库场景不同&lt;/li>
+&lt;li>此外 common 层放一些公共逻辑&lt;/li>
+&lt;/ol>
+&lt;h3 id="中间件需求">中间件需求&lt;/h3>
+&lt;ul>
+&lt;li>配合 handler 实现一个完整的请求处理生命周期&lt;/li>
+&lt;li>拥有预处理逻辑和后处理逻辑&lt;/li>
+&lt;li>可以注册多中间件&lt;/li>
+&lt;li>对上层模块用户逻辑模块易用&lt;/li>
+&lt;/ul>
+&lt;p>中间件典型模型：洋葱模型。
+请求过来，先经过一个日志中间件预处理，再经过 metrics 中间件预处理，处理完了后再执行一个真正的业务逻辑。
+最后再退出业务逻辑之后，我们会有一个后处理。一个 metric 中间件的后处理，接着一个日志中间件的后处理。
+最终将真正的响应（response）返回给用户。
+这个中间件的核心是将核心逻辑与通用逻辑分离。&lt;/p>
+&lt;h3 id="网络层">网络层&lt;/h3>
+&lt;p>那有了 epoll 之后，C10K的问题就可以解决了吗？ 我们在这里设想一个场景，就比如说你打客服电话，客服跟我说问我身份证号是多少，那这时候我忘了身份证号多少，我就必须说你等一下，我去找一下这个身份证，但我又没找着，那这个客服是不是占线，那占线的话他就什么都做不了，然后并在这里占住了，他等不下去了，就等到了超时。&lt;/p>
+&lt;p>那这种编程模型在互联网界就叫 block io，简称 bio 我们可以看下面这段代码，这段代码是go一个经典的connection处理，我们在一个 go function 里面维护一个 listener 那它 listener 每次 accept 获取一个连接之后，我们会开一个 goroutine 去单独处理它。这 goroutine 行为应该是先去读取数据，读取完之后然后处理业务逻辑，然后再把这个response写回去。这是一个比较经典的 go 的写法，那它就是一种 block io 编程模型。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-GO" data-lang="GO">&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(){&lt;/span>
+&lt;span class="k">for&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="nx">conn&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">listener&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Accept&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conn&lt;/span> &lt;span class="nx">net&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Conn&lt;/span>&lt;span class="p">){&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">buf&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">make&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="kt">byte&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">1024&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">n&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">[:&lt;/span>&lt;span class="nx">n&lt;/span>&lt;span class="p">]))&lt;/span>
+&lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="nb">byte&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;hello world&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">}(&lt;/span>&lt;span class="nx">conn&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>因为假如说你在读数据的时候读到了一半，它就读在这里了，它啥也干不了。&lt;/p>
+&lt;p>那有没有解决这种问题的办法，也比较简单，我们在中间引入一种通知的机制，就是当他数据有一半的时候，我让客服小姐姐也去干别的事情。那当它后续把整个包都已经发完的时候，我们再去通知他去处理，这样的话就不会阻塞。是在互联网界就是non block IO 的一种编程模式，它就是非阻塞的。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-GO" data-lang="GO">&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(){&lt;/span>
+&lt;span class="k">for&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="nx">readableConns&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nf">Monitor&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conns&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">for&lt;/span> &lt;span class="nx">coon&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="k">range&lt;/span> &lt;span class="nx">readableConns&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conn&lt;/span> &lt;span class="nx">net&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Conn&lt;/span>&lt;span class="p">){&lt;/span>
+&lt;span class="k">defer&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="nx">buf&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">make&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="kt">byte&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">1024&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">n&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">[:&lt;/span>&lt;span class="nx">n&lt;/span>&lt;span class="p">]))&lt;/span>
+&lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="nb">byte&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;hello world&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;span class="p">}(&lt;/span>&lt;span class="nx">conn&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>我们可以看一下刚才那段伪代码改成这段伪代码之后是什么样子，就是上面我们在第一个go function里面还是维护这个连接， accept 但是每次我们拿到这个连接之后，我们把它加到一个监听器里面，比如说 add 这个链接，然后我们在另外一个部分里面去轮询这个 monitor 就是监听器，我们搜索可读的连接数。因为这里 monitor 它已经知道有数据了，但我们这个服务方式去执行的时候可能是 read 这时候就能拿到完整的数据并处理，然后再返回，这个时候整个流程是没有阻塞的。&lt;/p>
+&lt;p>go 的网络库中 go/net 就是 BIO 的，而 netpoll 则是 NIO 的。&lt;/p>
+&lt;h3 id="小结一下">小结一下&lt;/h3>
+&lt;p>API设计：可理解性、简单性
+中间件设计：洋葱模型
+路由设计：前缀匹配树
+协议层设计：抽象出合适的接口
+网络层设计：网络模型&lt;/p>
 &lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://www.cnblogs.com/xiekun/p/14221020.html">51张图掌握HTTP&lt;/a>&lt;/p></description></item><item><title>Go Mod版本管理概要</title><link>https://lawrshen.github.io/post/go-mod/</link><pubDate>Sun, 12 Sep 2021 16:02:02 +0800</pubDate><guid>https://lawrshen.github.io/post/go-mod/</guid><description>&lt;p>一图概述Go MOD版本管理：&lt;/p>
+&lt;p>&lt;a href="https://www.cnblogs.com/xiekun/p/14221020.html">51张图掌握HTTP&lt;/a>&lt;/p></description></item><item><title>Go Mod版本管理概要</title><link>https://lawrshen.github.io/post/golang/go-mod/</link><pubDate>Sun, 12 Sep 2021 16:02:02 +0800</pubDate><guid>https://lawrshen.github.io/post/golang/go-mod/</guid><description>&lt;p>一图概述Go MOD版本管理：&lt;/p>
 &lt;p>&lt;img src="../../source/gomod.png" alt="GO MOD">&lt;/p>
 &lt;h1 id="关于go关于语言">关于go，关于语言&lt;/h1>
 &lt;p>&lt;code>SICP&lt;/code>指出，在学习一门编程语言时要特别注意以下三个方面：&lt;/p>
@@ -764,7 +947,7 @@ body//请求正文
 &lt;p>这些无疑都非常重要，但在现代编程语言的发展下，如&lt;code>golang&lt;/code>这种生而为项目开发的语言还会在繁复的第三方库部分需要一个官方可行性好的包管理器。&lt;/p>
 &lt;h1 id="reference">reference&lt;/h1>
 &lt;p>&lt;a href="https://github.com/vikyd/note/">go技术博客&lt;/a>&lt;/p>
-&lt;p>&lt;a href="https://eddycjy.com/posts/go/go-moduels/2020-02-28-go-modules/">Go Modules 终极入门&lt;/a>&lt;/p></description></item><item><title>Docker里使用MySQL</title><link>https://lawrshen.github.io/post/docker-mysql/</link><pubDate>Sat, 28 Aug 2021 20:14:00 +0800</pubDate><guid>https://lawrshen.github.io/post/docker-mysql/</guid><description>&lt;p>本科前两年因为装软件搞的老电脑乌烟瘴气（主要是装了各种依赖以及混乱的文件管理），避开了装病毒软件的坑之外，太多软件只是一学期上课使用而已&lt;/p>
+&lt;p>&lt;a href="https://eddycjy.com/posts/go/go-moduels/2020-02-28-go-modules/">Go Modules 终极入门&lt;/a>&lt;/p></description></item><item><title>Docker里使用MySQL</title><link>https://lawrshen.github.io/post/tools/docker-mysql/</link><pubDate>Sat, 28 Aug 2021 20:14:00 +0800</pubDate><guid>https://lawrshen.github.io/post/tools/docker-mysql/</guid><description>&lt;p>本科前两年因为装软件搞的老电脑乌烟瘴气（主要是装了各种依赖以及混乱的文件管理），避开了装病毒软件的坑之外，太多软件只是一学期上课使用而已&lt;/p>
 &lt;p>，为此大动干戈在电脑上反反复复可能还会遇到依赖相关的问题（Windows在编程配置方面实在是永远的痛。。），介于暑假又接触到了docker里跑pgsql决定在这个学期的数据库课环境也用docker构建MySQL的镜像，一劳永逸。下面记录了从0到成功运行的过程。&lt;/p>
 &lt;h1 id="运行环境">运行环境&lt;/h1>
 &lt;p>Windows10 - WSL2 - Ubuntu18.04&lt;/p>
@@ -881,7 +1064,7 @@ docker rm mysql
 &lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
 &lt;/div>
 &lt;/div>&lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://blog.csdn.net/wade3015/article/details/89843917">Docker中使用mysql数据库&lt;/a>&lt;/p></description></item><item><title>自定义配置一个简洁高效的Zsh</title><link>https://lawrshen.github.io/post/basic-zsh/</link><pubDate>Fri, 27 Aug 2021 23:49:47 +0800</pubDate><guid>https://lawrshen.github.io/post/basic-zsh/</guid><description>&lt;blockquote>
+&lt;p>&lt;a href="https://blog.csdn.net/wade3015/article/details/89843917">Docker中使用mysql数据库&lt;/a>&lt;/p></description></item><item><title>自定义配置一个简洁高效的Zsh</title><link>https://lawrshen.github.io/post/cmd/basic-zsh/</link><pubDate>Fri, 27 Aug 2021 23:49:47 +0800</pubDate><guid>https://lawrshen.github.io/post/cmd/basic-zsh/</guid><description>&lt;blockquote>
 &lt;p>事实上 oh-my-zsh 并不好用，严重拖慢了 Zsh 的速度，反而让你的工作并不高效。&lt;/p>
 &lt;/blockquote>
 &lt;p>Shell 是类 Unix 系统中超级好用的工具，而 Zsh 是 shell 中的佼佼者，但是现在网上一搜索 Zsh 的配置方案，遍地都是的互相复制粘贴的 oh-my-zsh 配置方案。&lt;/p>
@@ -942,7 +1125,7 @@ sudo apt-get install zsh
 &lt;/div>
 &lt;/div>&lt;p>然后在vscode的terminal font里注意替换成&lt;code>JetBrainsMono Nerd Font&lt;/code>,重新载入vscode界面方可。&lt;/p>
 &lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://blog.csdn.net/KeyBordkiller/article/details/109537610">在windows中ohmyzsh 的powerlevel10k主题及插件推荐&lt;/a>&lt;/p></description></item><item><title>在Windows上更舒服简单的使用终端</title><link>https://lawrshen.github.io/post/bash-on-windows/</link><pubDate>Sun, 22 Aug 2021 20:57:27 +0800</pubDate><guid>https://lawrshen.github.io/post/bash-on-windows/</guid><description>&lt;h1 id="bash-on-windows">Bash on Windows&lt;/h1>
+&lt;p>&lt;a href="https://blog.csdn.net/KeyBordkiller/article/details/109537610">在windows中ohmyzsh 的powerlevel10k主题及插件推荐&lt;/a>&lt;/p></description></item><item><title>在Windows上更舒服简单的使用终端</title><link>https://lawrshen.github.io/post/cmd/bash-on-windows/</link><pubDate>Sun, 22 Aug 2021 20:57:27 +0800</pubDate><guid>https://lawrshen.github.io/post/cmd/bash-on-windows/</guid><description>&lt;h1 id="bash-on-windows">Bash on Windows&lt;/h1>
 &lt;p>Windows作为桌面操作系统界的霸主在编程方面有一些一言难尽的硬伤，对Windows用户而言开发环境的选择一般有：纯 Windows、Windows+虚拟机 和 Windows+双系统。&lt;/p>
 &lt;p>纯Windows环境往往会增加折腾过程的难度，同时Windows 老旧的命令行界面和Windows独自的命令集也让人不那么提得起劲。后两种虽然能够体验最纯粹的 GNU/Linux 环境，但虚拟机的启动等待和系统的切换等待让这一过程显得不那么顺滑。而一个即插即用的终端软件，能够顺滑高效地体验终端的魅力，在多年需求之下，终于有了Microsoft官方的支持： &lt;code>Windows Terminal &lt;/code>&lt;/p>
 &lt;h2 id="why-terminal-">Why Terminal ？&lt;/h2>
@@ -964,7 +1147,7 @@ sudo apt-get install zsh
 &lt;/div>&lt;p>等待完成初始化就可以在vscode里使用terminal并且编辑代码了。更多配置可以参考&lt;a href="https://code.visualstudio.com/docs/remote/wsl">官方文档&lt;/a>。&lt;/p>
 &lt;h2 id="anything-else">Anything else&lt;/h2>
 &lt;p>对于开发人员来说，能够有一个全平台一致的 CLI （Command Line Interface）工具还是挺有必要的，但上面一通terminal配置似乎还是有点繁琐，害怕出现意想不到的bug，有没有更简单的终端可以练手呢？&lt;/p>
-&lt;p>git的&lt;code>bash.exe&lt;/code>或许是一个不错的选择，只要安装了git就可以点击运行，也可以在editor选择默认terminal为&lt;code>bash.exe&lt;/code>，能看到在对应的&lt;code>/usr/bin&lt;/code>目录中下常用的命令行工具如&lt;code>ssh nano curl wget cat ls mv mkdir ...&lt;/code>都已经内置了。非常方便。&lt;/p></description></item><item><title>社交媒介困境笔记</title><link>https://lawrshen.github.io/post/social-media/</link><pubDate>Fri, 20 Aug 2021 10:26:27 +0800</pubDate><guid>https://lawrshen.github.io/post/social-media/</guid><description>&lt;blockquote>
+&lt;p>git的&lt;code>bash.exe&lt;/code>或许是一个不错的选择，只要安装了git就可以点击运行，也可以在editor选择默认terminal为&lt;code>bash.exe&lt;/code>，能看到在对应的&lt;code>/usr/bin&lt;/code>目录中下常用的命令行工具如&lt;code>ssh nano curl wget cat ls mv mkdir ...&lt;/code>都已经内置了。非常方便。&lt;/p></description></item><item><title>社交媒介困境笔记</title><link>https://lawrshen.github.io/post/other/social-media/</link><pubDate>Fri, 20 Aug 2021 10:26:27 +0800</pubDate><guid>https://lawrshen.github.io/post/other/social-media/</guid><description>&lt;blockquote>
 &lt;p>试图探讨和社交媒体困境相关的三个主题：社交压力来源，现有解法利弊，其他解法可能&lt;/p>
 &lt;/blockquote>
 &lt;p>身边有不少人发布朋友圈，qq空间之类的熟人社交媒体平台的比率比较低，有些人本来发的内容也很多，但渐渐的越来越谨慎，发布频率也不停下降。&lt;/p>
@@ -993,7 +1176,7 @@ sudo apt-get install zsh
 &lt;p>即多发动态，多社交，有利于巩固社交媒体护城河&amp;#160;&lt;a href="#fnref:1" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
 &lt;/li>
 &lt;/ol>
-&lt;/section></description></item><item><title>快速上手RSS，给自己订阅消息</title><link>https://lawrshen.github.io/post/ohmyrss/</link><pubDate>Mon, 16 Aug 2021 22:04:17 +0800</pubDate><guid>https://lawrshen.github.io/post/ohmyrss/</guid><description>&lt;p>网上其实还是能搜到不少介绍RSS的介绍的，但是新手可能更关心如何上手的问题。anyway先能用起来才有进一步学习的动力，本文记录了我从接触RSS到使用的历程。&lt;/p>
+&lt;/section></description></item><item><title>快速上手RSS，给自己订阅消息</title><link>https://lawrshen.github.io/post/tools/ohmyrss/</link><pubDate>Mon, 16 Aug 2021 22:04:17 +0800</pubDate><guid>https://lawrshen.github.io/post/tools/ohmyrss/</guid><description>&lt;p>网上其实还是能搜到不少介绍RSS的介绍的，但是新手可能更关心如何上手的问题。anyway先能用起来才有进一步学习的动力，本文记录了我从接触RSS到使用的历程。&lt;/p>
 &lt;h1 id="简介">简介&lt;/h1>
 &lt;p>摘自网络的介绍。RSS的全称是Really Simple Syndication（简易信息聚合），它是一种&lt;strong>消息来源的格式规范&lt;/strong>，网站可以按照这种格式规范提供文章的标题、摘要、全文等信息给订阅用户，用户可以通过订阅不同网站 RSS 链接的方式&lt;strong>将不同的信息源进行聚合&lt;/strong>，在一个工具里阅读这些内容。&lt;/p>
 &lt;p>简单来说，RSS 就是一种&lt;strong>订阅某个网站内容更新的协议&lt;/strong>。这种略显「古老」的协议在社交媒体和聚合阅读的冲击下日渐式微，甚至连 Google 也于 2013 年关闭了自家的 RSS 服务 Google Reader。那么，我们为什么还要选择 RSS 呢？&lt;/p>
@@ -1006,7 +1189,7 @@ sudo apt-get install zsh
 &lt;li>支持收藏或标记功能&lt;/li>
 &lt;li>无需自己部署（没有服务器x）&lt;/li>
 &lt;/ol>
-&lt;p>目前使用比较老牌的feedly试水。使用方法很简单，注册账户然后添加订阅即可。（需要外网），配合了feedly mini插件食用。&lt;/p></description></item><item><title>公开课笔记</title><link>https://lawrshen.github.io/post/opencourse-list/</link><pubDate>Sun, 15 Aug 2021 14:11:28 +0800</pubDate><guid>https://lawrshen.github.io/post/opencourse-list/</guid><description>&lt;blockquote>
+&lt;p>目前使用比较老牌的feedly试水。使用方法很简单，注册账户然后添加订阅即可。（需要外网），配合了feedly mini插件食用。&lt;/p></description></item><item><title>公开课笔记</title><link>https://lawrshen.github.io/post/other/opencourse-list/</link><pubDate>Sun, 15 Aug 2021 14:11:28 +0800</pubDate><guid>https://lawrshen.github.io/post/other/opencourse-list/</guid><description>&lt;blockquote>
 &lt;p>一些有所收获的公开课记录，涵盖了技术，人文各方面有见解的讲授。&lt;/p>
 &lt;/blockquote>
 &lt;h1 id="社会篇">社会篇&lt;/h1>
@@ -1048,7 +1231,7 @@ sudo apt-get install zsh
 &lt;h3 id="22th">22th&lt;/h3>
 &lt;p>少点网上冲浪，多读读书。&lt;/p>
 &lt;h3 id="28th">28th&lt;/h3>
-&lt;p>正式实习的日子结束了，想快点开学。今晚折腾了好久zsh配置，希望以后能少点（&lt;/p></description></item><item><title>Leetcode刷题笔记</title><link>https://lawrshen.github.io/post/leetcode/</link><pubDate>Sun, 15 Aug 2021 10:37:11 +0800</pubDate><guid>https://lawrshen.github.io/post/leetcode/</guid><description>&lt;h1 id="576-出界的路径数httpsleetcode-cncomproblemsout-of-boundary-paths">576 &lt;a href="https://leetcode-cn.com/problems/out-of-boundary-paths/">出界的路径数&lt;/a>&lt;/h1>
+&lt;p>正式实习的日子结束了，想快点开学。今晚折腾了好久zsh配置，希望以后能少点（&lt;/p></description></item><item><title>Leetcode刷题笔记</title><link>https://lawrshen.github.io/post/se/leetcode/</link><pubDate>Sun, 15 Aug 2021 10:37:11 +0800</pubDate><guid>https://lawrshen.github.io/post/se/leetcode/</guid><description>&lt;h1 id="576-出界的路径数httpsleetcode-cncomproblemsout-of-boundary-paths">576 &lt;a href="https://leetcode-cn.com/problems/out-of-boundary-paths/">出界的路径数&lt;/a>&lt;/h1>
 &lt;blockquote>
 &lt;p>m*n表格(1x1~50x50)中一个位置在给定maxMove(0~50)的情况下到达边框外的路径数量和&lt;/p>
 &lt;/blockquote>
@@ -1127,7 +1310,7 @@ $$
 &lt;p>2.如何利用一个小范围随机数，得到一个确定范围的等概率随机数？&lt;/p>
 &lt;p>先采用随机数的 k 进制，得到一个不小于确定范围的随机数 randK，然后对超过确定范围数进行拒绝即可。 注意，如果 K 比确定范围大太多，拒绝策略效率可能就会比较低（经常生成要拒绝的随机数），此时可以把要拒绝的随机数看成一个新的 randM，然后针对这个 randM 再思考怎么用这三个方法也得到确定范围的随机数&lt;/p>
 &lt;p>3.补充技能&lt;/p>
-&lt;p>对于随机数 randN，只要 K 是 N 的约数（或者说 N 是 K 的整数倍），都可以通过 randN 一步得到 randK：randK = (randN % K) + 1;&lt;/p></description></item><item><title>WSL2的网，连上了但还没完全连上</title><link>https://lawrshen.github.io/post/wsl-net/</link><pubDate>Wed, 11 Aug 2021 22:45:17 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl-net/</guid><description>&lt;blockquote>
+&lt;p>对于随机数 randN，只要 K 是 N 的约数（或者说 N 是 K 的整数倍），都可以通过 randN 一步得到 randK：randK = (randN % K) + 1;&lt;/p></description></item><item><title>WSL2的网，连上了但还没完全连上</title><link>https://lawrshen.github.io/post/wsl/wsl-net/</link><pubDate>Wed, 11 Aug 2021 22:45:17 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl/wsl-net/</guid><description>&lt;blockquote>
 &lt;p>无特别说明，本文以下内容所提到的 WSL 皆指 WSL2。&lt;/p>
 &lt;/blockquote>
 &lt;p>起因是为了在Windows10运行docker，这个暑假就开始使用WSL进行开发，无论是 Python/C++/Golang 都是用 VSCode Remote WSL 进行开发的，体验非常好。&lt;/p>
@@ -1178,9 +1361,9 @@ git config --global http.https://github.com.proxy http://&lt;span class="nv">$wi
 &lt;/div>
 &lt;/div>&lt;p>不要忘了source .bashrc&lt;/p>
 &lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://lengthmin.me/posts/wsl2-network-tricks/">WSL2 的一些网络访问问题&lt;/a>&lt;/p></description></item><item><title>好物推荐，Chrome插件测评</title><link>https://lawrshen.github.io/post/chrome-plugins/</link><pubDate>Wed, 11 Aug 2021 19:41:47 +0800</pubDate><guid>https://lawrshen.github.io/post/chrome-plugins/</guid><description>&lt;p>Chrome浏览器常为人乐道的一点是拥有丰富的插件，除了通常推荐的如&lt;code>Adblock&lt;/code>外，这里给出一些由日常衍生而来的一些痛点解决问题所发现的好用插件。&lt;/p>
+&lt;p>&lt;a href="https://lengthmin.me/posts/wsl2-network-tricks/">WSL2 的一些网络访问问题&lt;/a>&lt;/p></description></item><item><title>好物推荐，Chrome插件测评</title><link>https://lawrshen.github.io/post/tools/chrome-plugins/</link><pubDate>Wed, 11 Aug 2021 19:41:47 +0800</pubDate><guid>https://lawrshen.github.io/post/tools/chrome-plugins/</guid><description>&lt;p>Chrome浏览器常为人乐道的一点是拥有丰富的插件，除了通常推荐的如&lt;code>Adblock&lt;/code>外，这里给出一些由日常衍生而来的一些痛点解决问题所发现的好用插件。&lt;/p>
 &lt;h1 id="网站黑名单-ublacklist">网站黑名单 uBlacklist&lt;/h1>
-&lt;p>起因是在搜索CS相关问题时候，遇到了qastack这个李鬼，是一个爬取stack overflow的引流网站，详见&lt;a href="https://github.com/danny0838/content-farm-terminator/issues/42">issue 42&lt;/a>，严重阻碍了获取高质量问题解决方法，加之一些额外的垃圾网站非常烦人，&lt;code>uBlacklist&lt;/code>是一个好用的网站黑名单插件，同时还能方便找到其他人整理的屏蔽列表。目前笔者已经把qastack和codenong网站完全屏蔽。&lt;/p></description></item><item><title>如何使用 heredoc 作为一个文本编辑器[译]</title><link>https://lawrshen.github.io/post/heredoc/</link><pubDate>Wed, 11 Aug 2021 19:38:26 +0800</pubDate><guid>https://lawrshen.github.io/post/heredoc/</guid><description>&lt;p>项目里看到了一种shell脚本新奇的写法，找到一篇通俗易懂的介绍，引用于此。&lt;/p>
+&lt;p>起因是在搜索CS相关问题时候，遇到了qastack这个李鬼，是一个爬取stack overflow的引流网站，详见&lt;a href="https://github.com/danny0838/content-farm-terminator/issues/42">issue 42&lt;/a>，严重阻碍了获取高质量问题解决方法，加之一些额外的垃圾网站非常烦人，&lt;code>uBlacklist&lt;/code>是一个好用的网站黑名单插件，同时还能方便找到其他人整理的屏蔽列表。目前笔者已经把qastack和codenong网站完全屏蔽。&lt;/p></description></item><item><title>如何使用 heredoc 作为一个文本编辑器[译]</title><link>https://lawrshen.github.io/post/cmd/heredoc/</link><pubDate>Wed, 11 Aug 2021 19:38:26 +0800</pubDate><guid>https://lawrshen.github.io/post/cmd/heredoc/</guid><description>&lt;p>项目里看到了一种shell脚本新奇的写法，找到一篇通俗易懂的介绍，引用于此。&lt;/p>
 &lt;p>原文链接：&lt;a href="https://opensource.com/article/20/12/heredoc">How to use heredoc as a text editor&lt;/a>&lt;/p>
 &lt;blockquote>
 &lt;p>这个不起眼的终端功能在紧要关头提供一个文本编辑器。&lt;/p>
@@ -1310,7 +1493,7 @@ cat &lt;span class="s">&amp;lt;&amp;lt; EOF &amp;gt;&amp;gt; $HOME/.local/share/
 &lt;/div>&lt;p>正如你所看到的，你可以在 heredoc 中使用变量，而且它们得到了正确的解析。EOF 字符串并没有出现在文件中，它只是标志着 heredoc 的结束。&lt;/p>
 &lt;h1 id="比-echo-更好">比 echo 更好&lt;/h1>
 &lt;p>heredoc 技术通常被认为比 echo 或 printf 更容易，因为一旦你“进入”了文档，你就可以自由地做任何你想做的事情。从这个意义上说，它是自由的，但与合适的文本编辑器相比，它是有限的。&lt;/p>
-&lt;p>使用 heredoc 来做快速笔记和 shell 脚本，再也不用为如何动态生成配置文件而烦恼了。&lt;/p></description></item><item><title>你们仍未掌握那天所学的 git 知识</title><link>https://lawrshen.github.io/post/git-tricks/</link><pubDate>Sun, 08 Aug 2021 23:28:42 +0800</pubDate><guid>https://lawrshen.github.io/post/git-tricks/</guid><description>&lt;h1 id="config">config&lt;/h1>
+&lt;p>使用 heredoc 来做快速笔记和 shell 脚本，再也不用为如何动态生成配置文件而烦恼了。&lt;/p></description></item><item><title>你们仍未掌握那天所学的 git 知识</title><link>https://lawrshen.github.io/post/cmd/git-tricks/</link><pubDate>Sun, 08 Aug 2021 23:28:42 +0800</pubDate><guid>https://lawrshen.github.io/post/cmd/git-tricks/</guid><description>&lt;h1 id="config">config&lt;/h1>
 &lt;h2 id="git设置代理">git设置代理&lt;/h2>
 &lt;p>众所周知的原因，为了提高git clone大型开源社区平台github的访问速度，通过查询工具的端口号（port），在git终端设置github.com代理：&lt;/p>
 &lt;div class="highlight">&lt;div class="chroma">
@@ -1370,7 +1553,7 @@ http.https://github.com.proxy&lt;span class="o">=&lt;/span>http://127.0.0.1:port
 &lt;h1 id="建议">建议&lt;/h1>
 &lt;p>和任何一门语言一样，学习git最好的方法还是实战中多用它！真正接触项目并在生产环境中使用git对其学习更有立竿见影的功效。&lt;/p>
 &lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://ericclose.github.io/git-proxy-config.html">一文让你了解如何为 Git 设置代理&lt;/a>&lt;/p></description></item><item><title>使用WSL2安装使用Gitbook</title><link>https://lawrshen.github.io/post/wsl-gitbook/</link><pubDate>Sat, 07 Aug 2021 22:29:39 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl-gitbook/</guid><description>&lt;h1 id="环境准备">环境准备&lt;/h1>
+&lt;p>&lt;a href="https://ericclose.github.io/git-proxy-config.html">一文让你了解如何为 Git 设置代理&lt;/a>&lt;/p></description></item><item><title>使用WSL2安装使用Gitbook</title><link>https://lawrshen.github.io/post/wsl/wsl-gitbook/</link><pubDate>Sat, 07 Aug 2021 22:29:39 +0800</pubDate><guid>https://lawrshen.github.io/post/wsl/wsl-gitbook/</guid><description>&lt;h1 id="环境准备">环境准备&lt;/h1>
 &lt;p>我的gitbook是在wsl2上安装Ubuntu18后install的，开始时换完源一穷二白，直接命令行：&lt;/p>
 &lt;div class="highlight">&lt;div class="chroma">
 &lt;table class="lntable">&lt;tr>&lt;td class="lntd">
@@ -1472,7 +1655,7 @@ npm cache clean &lt;span class="o">[&lt;/span>-f/--force&lt;span class="o">]&lt;
 &lt;li>&lt;a href="https://cardigan1008.fun/">cardigan1008&lt;/a>&lt;/li>
 &lt;/ul></description></item><item><title>你好 世界</title><link>https://lawrshen.github.io/post/hello-world/</link><pubDate>Sat, 07 Aug 2021 18:37:09 +0800</pubDate><guid>https://lawrshen.github.io/post/hello-world/</guid><description>&lt;h1 id="hello-world">Hello world&lt;/h1>
 &lt;p>编程里，打出&lt;code>hello world&lt;/code>就算是开始了新的一门语言学习。&lt;/p>
-&lt;p>从hexo到hugo框架，原博客迁移至此，试着继续写点小东西。&lt;/p></description></item><item><title>堆的应用：动态找寻中位数</title><link>https://lawrshen.github.io/post/heap-mid/</link><pubDate>Wed, 03 Feb 2021 17:43:37 +0800</pubDate><guid>https://lawrshen.github.io/post/heap-mid/</guid><description>&lt;blockquote>
+&lt;p>从hexo到hugo框架，原博客迁移至此，试着继续写点小东西。&lt;/p></description></item><item><title>堆的应用：动态找寻中位数</title><link>https://lawrshen.github.io/post/algo/heap-mid/</link><pubDate>Wed, 03 Feb 2021 17:43:37 +0800</pubDate><guid>https://lawrshen.github.io/post/algo/heap-mid/</guid><description>&lt;blockquote>
 &lt;p>《算法设计与分析（第2版）》黄宇著 14章 堆与偏序关系&lt;/p>
 &lt;p>14.6 有一组元素，它们不断地被&lt;strong>动态加入和删除&lt;/strong>，但是我们需要随时找出当前&lt;strong>所有元素的中位数&lt;/strong>。为此，请设计一个数据结构，以支持&lt;strong>对数时间&lt;/strong>的插入、删除和&lt;strong>常数时间&lt;/strong>的找出中位数(提示:利用两个堆来实现该数据结构)。&lt;/p>
 &lt;/blockquote>

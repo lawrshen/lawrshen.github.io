@@ -85,7 +85,49 @@
 <section id=posts class=posts>
 <article class=post>
 <header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/epoll/>Epoll 简介</a></h1>
+<h1 class=post-title><a class=post-link href=/post/golang/go-map/>Golang map简介</a></h1>
+<div class=post-meta>
+<span class=post-time> 2022-05-28 </span>
+<div class=post-category>
+<a href=/categories/golang/> golang </a>
+</div>
+<span class=more-meta> 904 words </span>
+<span class=more-meta> 2 mins read </span>
+</div>
+</header>
+<div class=post-content>
+<div class=post-summary>
+<p>golang 语言提供了 built-in 的 map 类型，提供 hash table 的功能。完成的特性主要有：增删查改。</p>
+</div>
+<div class=read-more>
+<a href=/post/golang/go-map/ class=read-more-link>Read more...</a>
+</div>
+</div>
+</article>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title><a class=post-link href=/post/se/id/>分布式唯一 Id</a></h1>
+<div class=post-meta>
+<span class=post-time> 2022-05-26 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 426 words </span>
+<span class=more-meta> 1 min read </span>
+</div>
+</header>
+<div class=post-content>
+<div class=post-summary>
+UUID universally unique identifier，统一唯一标识符，是一个128位（16字节）的数字，由算法生成，算法可以是任意的，但是算法的种类不能太多，否则就不
+</div>
+<div class=read-more>
+<a href=/post/se/id/ class=read-more-link>Read more...</a>
+</div>
+</div>
+</article>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title><a class=post-link href=/post/net/io/epoll/>Epoll 简介</a></h1>
 <div class=post-meta>
 <span class=post-time> 2022-05-26 </span>
 <div class=post-category>
@@ -100,13 +142,13 @@
 <p>epoll 可以说是和 poll 非常相似的一种 I/O 多路复用技术，epoll 通过监控注册的多个描述字，来进行 I/O 事件的分发处理。不同于 poll 的是，epoll 不仅提供了默认的 level-triggered（条件触发）机制，还提供了性能更为强劲的 edge-triggered（边缘触发）机制。</p>
 </div>
 <div class=read-more>
-<a href=/post/epoll/ class=read-more-link>Read more...</a>
+<a href=/post/net/io/epoll/ class=read-more-link>Read more...</a>
 </div>
 </div>
 </article>
 <article class=post>
 <header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/tcp/>简谈TCP的可靠传输</a></h1>
+<h1 class=post-title><a class=post-link href=/post/net/tcp/tcp/>简谈TCP的可靠传输</a></h1>
 <div class=post-meta>
 <span class=post-time> 2022-05-19 </span>
 <div class=post-category>
@@ -121,13 +163,13 @@
 <p>计算机网络领域的经典问题回顾。主要针对 TCP 如何实现可靠传输。</p>
 </div>
 <div class=read-more>
-<a href=/post/tcp/ class=read-more-link>Read more...</a>
+<a href=/post/net/tcp/tcp/ class=read-more-link>Read more...</a>
 </div>
 </div>
 </article>
 <article class=post>
 <header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/mysql-index/>Mysql 索引</a></h1>
+<h1 class=post-title><a class=post-link href=/post/db/mysql-index/>Mysql 索引</a></h1>
 <div class=post-meta>
 <span class=post-time> 2022-05-17 </span>
 <div class=post-category>
@@ -143,49 +185,7 @@
 <p>索引的目的是<strong>提高查找效率</strong>，对数据表的值集合进行了排序，并按照一定数据结构进行了存储。</p>
 </div>
 <div class=read-more>
-<a href=/post/mysql-index/ class=read-more-link>Read more...</a>
-</div>
-</div>
-</article>
-<article class=post>
-<header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/malloc/>内存分配模型</a></h1>
-<div class=post-meta>
-<span class=post-time> 2022-05-17 </span>
-<div class=post-category>
-<a href=/categories/coding/> coding </a>
-</div>
-<span class=more-meta> 1214 words </span>
-<span class=more-meta> 3 mins read </span>
-</div>
-</header>
-<div class=post-content>
-<div class=post-summary>
-<p>在UNIX/C 程序中，理解如何分配和管理内存是构建健壮和可靠软件的重要基础。</p>
-</div>
-<div class=read-more>
-<a href=/post/malloc/ class=read-more-link>Read more...</a>
-</div>
-</div>
-</article>
-<article class=post>
-<header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/table-driven/>表驱动法</a></h1>
-<div class=post-meta>
-<span class=post-time> 2022-02-09 </span>
-<div class=post-category>
-<a href=/categories/coding/> coding </a>
-</div>
-<span class=more-meta> 515 words </span>
-<span class=more-meta> 2 mins read </span>
-</div>
-</header>
-<div class=post-content>
-<div class=post-summary>
-<p>表驱动法(Table-Driven Approach)简单说就是查表，目的是代替过多的条件分支语句。</p>
-</div>
-<div class=read-more>
-<a href=/post/table-driven/ class=read-more-link>Read more...</a>
+<a href=/post/db/mysql-index/ class=read-more-link>Read more...</a>
 </div>
 </div>
 </article>
@@ -226,7 +226,7 @@ Theme -
 <span class=copyright-year>
 &copy;
 2021 -
-2022<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+2023<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
 </span>
 </div>
 </footer>

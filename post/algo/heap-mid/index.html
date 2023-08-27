@@ -1,0 +1,607 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="IE=edge,chrome=1">
+<title>堆的应用：动态找寻中位数 - Don`t Panic :-)</title>
+<meta name=renderer content="webkit">
+<meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta http-equiv=cache-control content="no-transform">
+<meta http-equiv=cache-control content="no-siteapp">
+<meta name=theme-color content="#f8f5ec">
+<meta name=msapplication-navbutton-color content="#f8f5ec">
+<meta name=apple-mobile-web-app-capable content="yes">
+<meta name=apple-mobile-web-app-status-bar-style content="#f8f5ec">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FQBGCF2JH0"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-FQBGCF2JH0')</script>
+<meta name=author content="lawrshen"><meta name=description content="堆的应用"><meta name=keywords content="Blog,计算机技术,分享">
+<meta name=generator content="Hugo 0.87.0 with theme even">
+<link rel=canonical href=https://lawrshen.github.io/post/algo/heap-mid/>
+<link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
+<link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
+<link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
+<link rel=manifest href=/manifest.json>
+<link rel=mask-icon href=/safari-pinned-tab.svg color=#5bbad5>
+<script async src=//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js></script>
+<link href=/sass/main.min.f92fd13721ddf72129410fd8250e73152cc6f2438082b6c0208dc24ee7c13fc4.css rel=stylesheet>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin=anonymous>
+<meta property="og:title" content="堆的应用：动态找寻中位数">
+<meta property="og:description" content="堆的应用">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://lawrshen.github.io/post/algo/heap-mid/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2021-02-03T17:43:37+08:00">
+<meta property="article:modified_time" content="2023-08-27T16:00:03+08:00">
+<meta itemprop=name content="堆的应用：动态找寻中位数">
+<meta itemprop=description content="堆的应用"><meta itemprop=datePublished content="2021-02-03T17:43:37+08:00">
+<meta itemprop=dateModified content="2023-08-27T16:00:03+08:00">
+<meta itemprop=wordCount content="1677">
+<meta itemprop=keywords content="heap,mid,"><meta name=twitter:card content="summary">
+<meta name=twitter:title content="堆的应用：动态找寻中位数">
+<meta name=twitter:description content="堆的应用"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
+<script src=https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js></script><![endif]-->
+</head>
+<body>
+<div id=mobile-navbar class=mobile-navbar>
+<div class=mobile-header-logo>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<div class=mobile-navbar-icon>
+<span></span>
+<span></span>
+<span></span>
+</div>
+</div>
+<nav id=mobile-menu class="mobile-menu slideout-menu">
+<ul class=mobile-menu-list>
+<a href=/>
+<li class=mobile-menu-item>Home</li>
+</a><a href=/post/>
+<li class=mobile-menu-item>Archives</li>
+</a><a href=/categories/>
+<li class=mobile-menu-item>Categories</li>
+</a><a href=/about/>
+<li class=mobile-menu-item>About</li>
+</a>
+</ul>
+</nav>
+<div class=container id=mobile-panel>
+<header id=header class=header>
+<div class=logo-wrapper>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<nav class=site-navbar>
+<ul id=menu class=menu>
+<li class=menu-item>
+<a class=menu-item-link href=/>Home</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/post/>Archives</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/categories/>Categories</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/about/>About</a>
+</li>
+</ul>
+</nav>
+</header>
+<main id=main class=main>
+<div class=content-wrapper>
+<div id=content class=content>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title>堆的应用：动态找寻中位数</h1>
+<div class=post-meta>
+<span class=post-time> 2021-02-03 </span>
+<div class=post-category>
+<a href=/categories/algorithm/> algorithm </a>
+</div>
+<span class=more-meta> 1677 words </span>
+<span class=more-meta> 4 mins read </span>
+<span id=busuanzi_container_page_pv class=more-meta> <span id=busuanzi_value_page_pv><img src=/img/spinner.svg alt=spinner.svg></span> times read </span>
+</div>
+</header>
+<div class=post-toc id=post-toc>
+<h2 class=post-toc-title>Contents</h2>
+<div class="post-toc-content always-active">
+<nav id=TableOfContents>
+<ul>
+<li>
+<ul>
+<li>
+<ul>
+<li><a href=#insertnum>insert(num)</a></li>
+<li><a href=#erasenum>erase(num)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+<div class=post-content>
+<blockquote>
+<p>《算法设计与分析（第2版）》黄宇著 14章 堆与偏序关系</p>
+<p>14.6 有一组元素，它们不断地被<strong>动态加入和删除</strong>，但是我们需要随时找出当前<strong>所有元素的中位数</strong>。为此，请设计一个数据结构，以支持<strong>对数时间</strong>的插入、删除和<strong>常数时间</strong>的找出中位数(提示:利用两个堆来实现该数据结构)。</p>
+</blockquote>
+<p>2021.2.5更新：本文属于对顶堆求数据量第k大数的特例：求中位数，基本思想和代码可以从下述特例中泛化。</p>
+<hr>
+<p>​ 首先，我们思考一下中位数的性质：如果一个数是中位数，那么在这个数组中，<strong>大于</strong>中位数的数目和<strong>小于</strong>中位数的数目，要么<strong>相等</strong>，要么就<strong>相差一</strong>。</p>
+<p>​ 我们自然可以考虑到利用<strong>堆</strong>维护这个数据结构，大顶堆存放<strong>前半</strong>小的数，小顶堆存放<strong>后半</strong>大的数。</p>
+<p>​ C++ 优先队列实现：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=n>priority_queue</span><span class=o>&lt;</span><span class=kt>int</span><span class=p>,</span> <span class=n>vector</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;</span><span class=p>,</span> <span class=n>greater</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;&gt;</span> <span class=n>minheap</span><span class=p>;</span>
+<span class=n>priority_queue</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;</span> <span class=n>maxheap</span><span class=p>;</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>​ 分以下两种情况：</p>
+<p>当总数<strong>奇</strong>数个时，大顶堆比小顶堆多一个元素，中位数就是<strong>大顶堆堆顶</strong>。</p>
+<p>当总数<strong>偶</strong>数个时，大顶堆比小顶堆元素一样多，中位数就是<strong>大顶堆和小顶堆堆顶的平均数</strong>。</p>
+<p>​</p>
+<p>接下来我们考虑维护这个动态找寻中位数的数据结构 <strong>MedianFinder</strong> 接口如下：</p>
+<ul>
+<li>
+<p>insert(num)：将一个数 num <strong>加入</strong>数据结构；</p>
+</li>
+<li>
+<p>erase(num)： 将一个数 num <strong>移出</strong>数据结构；</p>
+</li>
+<li>
+<p>getMedian()：返回当前数据结构中所有数的<strong>中位数</strong>。</p>
+</li>
+</ul>
+<p>getMedian() 就如上所说：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=kt>double</span> <span class=nf>getMedian</span><span class=p>(){</span>
+    <span class=k>if</span> <span class=p>(</span><span class=n>minheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=o>==</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=p>)</span>
+        <span class=k>return</span> <span class=p>((</span><span class=kt>double</span><span class=p>)</span><span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>()</span> <span class=o>+</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span> <span class=o>/</span> <span class=mi>2</span><span class=p>;</span><span class=c1>//防范int溢出，增强鲁棒性
+</span><span class=c1></span>    <span class=k>else</span>
+        <span class=k>return</span> <span class=p>(</span><span class=kt>double</span><span class=p>)</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+<span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>下面主要分析insert(num) 与 erase(num) 。</p>
+<h3 id=insertnum>insert(num)</h3>
+<p>对于insert(num)而言，初始堆全空情况num加入大顶堆，然后加入的 num 与大顶堆顶元素比较，<strong>num 较小加入小顶堆，更大加入大顶堆。<strong>insert(num)之后还要</strong>注意保持两个堆的相对数量关系</strong>。即包含元素<code>数量相等</code>，或者储存了小半的<code>大顶堆多一个元素</code>。当<strong>初次失去平衡</strong>也即 <code>大顶堆比小顶堆多了两个元素</code> 或 <code>小顶堆比大顶堆多了一个元素</code> 时把堆顶转移。</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=kt>void</span> <span class=nf>makebalance</span><span class=p>()</span>
+<span class=p>{</span>
+    <span class=k>if</span> <span class=p>(</span><span class=n>maxheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=o>&gt;</span> <span class=n>minheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=o>+</span> <span class=mi>1</span><span class=p>){</span>
+        <span class=n>minheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>());</span>
+        <span class=n>maxheap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+    <span class=p>}</span>
+    <span class=k>else</span> <span class=k>if</span> <span class=p>(</span><span class=n>maxheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=o>&lt;</span> <span class=n>minheap</span><span class=p>.</span><span class=n>size</span><span class=p>()</span> <span class=p>){</span>
+        <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>());</span>
+        <span class=n>minheap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+    <span class=p>}</span>
+<span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>有了辅助函数<code>makebalance()</code>后，insert(num)就可以给出这样的参考实现了：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=kt>void</span> <span class=nf>insert</span><span class=p>(</span><span class=kt>int</span> <span class=n>num</span><span class=p>)</span>
+<span class=p>{</span>
+    <span class=k>if</span> <span class=p>(</span><span class=n>minheap</span><span class=p>.</span><span class=n>empty</span><span class=p>()</span> <span class=o>&amp;&amp;</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>empty</span><span class=p>())</span>
+        <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+    <span class=k>else</span><span class=p>{</span>
+        <span class=kt>int</span> <span class=n>topnum</span> <span class=o>=</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>topnum</span> <span class=o>&lt;</span> <span class=n>num</span><span class=p>)</span>
+            <span class=n>minheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+        <span class=k>else</span>
+            <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+    <span class=p>}</span>
+    <span class=n>makebalance</span><span class=p>();</span>
+<span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h3 id=erasenum>erase(num)</h3>
+<p>​ 由于堆是不支持移出非堆顶元素这一操作的，因此我们可以考虑使用「延迟删除」的技巧，即：</p>
+<blockquote>
+<p>当我们需要移出优先队列中的某个元素时，我们只将这个删除操作「记录」下来，而不去真的删除这个元素。当这个元素出现在大顶堆或小顶堆堆顶时，我们再去将其移出。</p>
+</blockquote>
+<p>​ 「延迟删除」使用到的辅助数据结构一般为<strong>哈希表 delayed</strong>，其中的每个键值对 (num,freq)，表示元素 num 还需要被删除 freq 次。</p>
+<p>​ C++ 哈希表实现：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=n>unordered_map</span><span class=o>&lt;</span><span class=kt>int</span><span class=p>,</span> <span class=kt>int</span><span class=o>&gt;</span> <span class=n>delayed</span><span class=p>;</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>​ 增添辅助函数<code>prune(T &heap)</code>对每次堆顶改变后的堆进行修剪。</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=o>&gt;</span>
+<span class=kt>void</span> <span class=n>prune</span><span class=p>(</span><span class=n>T</span> <span class=o>&amp;</span><span class=n>heap</span><span class=p>){</span>
+    <span class=k>while</span> <span class=p>(</span><span class=o>!</span><span class=n>heap</span><span class=p>.</span><span class=n>empty</span><span class=p>()){</span>
+        <span class=kt>int</span> <span class=n>num</span> <span class=o>=</span> <span class=n>heap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>delayed</span><span class=p>.</span><span class=n>count</span><span class=p>(</span><span class=n>num</span><span class=p>)){</span>
+            <span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span><span class=o>--</span><span class=p>;</span>
+            <span class=k>if</span> <span class=p>(</span><span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span> <span class=o>==</span> <span class=mi>0</span><span class=p>)</span>
+                <span class=n>delayed</span><span class=p>.</span><span class=n>erase</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+            <span class=n>heap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+        <span class=p>}</span>
+        <span class=k>else</span>
+            <span class=k>break</span><span class=p>;</span>
+    <span class=p>}</span>
+<span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>​ 结合<code>prune()</code>和<code>makebalance()</code>之后erase(num)的实现就容易了，要注意的一点是因为「延迟删除」，堆的 size 不再是当前真正的堆中元素数量，因为有一些应该要被删除的还暂时存放在堆之中，所以再设置全局变量maxSize，minSize，每当heap进行push时Size++，每当pop时Size&ndash;。根据Size做出大小判断。</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=kt>void</span> <span class=nf>erase</span><span class=p>(</span><span class=kt>int</span> <span class=n>num</span><span class=p>)</span>
+<span class=p>{</span>
+    <span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span><span class=o>++</span><span class=p>;</span>
+    <span class=k>if</span><span class=p>(</span><span class=n>num</span><span class=o>&lt;=</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>()){</span>
+        <span class=n>maxSize</span><span class=o>--</span><span class=p>;</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>num</span> <span class=o>==</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span>
+            <span class=n>prune</span><span class=p>(</span><span class=n>maxheap</span><span class=p>);</span>
+    <span class=p>}</span>
+    <span class=k>else</span><span class=p>{</span>
+        <span class=n>minSize</span><span class=o>--</span><span class=p>;</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>num</span> <span class=o>==</span> <span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span>
+            <span class=n>prune</span><span class=p>(</span><span class=n>minheap</span><span class=p>);</span>
+    <span class=p>}</span>
+    <span class=n>makebalance</span><span class=p>();</span>
+<span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>​ 全局变量Size的思想对之前insert(num) 等函数皆同理，对前面一致改写后给出最后的参考实现<code>MedianFinder</code>如下：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span><span class=lnt>63
+</span><span class=lnt>64
+</span><span class=lnt>65
+</span><span class=lnt>66
+</span><span class=lnt>67
+</span><span class=lnt>68
+</span><span class=lnt>69
+</span><span class=lnt>70
+</span><span class=lnt>71
+</span><span class=lnt>72
+</span><span class=lnt>73
+</span><span class=lnt>74
+</span><span class=lnt>75
+</span><span class=lnt>76
+</span><span class=lnt>77
+</span><span class=lnt>78
+</span><span class=lnt>79
+</span><span class=lnt>80
+</span><span class=lnt>81
+</span><span class=lnt>82
+</span><span class=lnt>83
+</span><span class=lnt>84
+</span><span class=lnt>85
+</span><span class=lnt>86
+</span><span class=lnt>87
+</span><span class=lnt>88
+</span><span class=lnt>89
+</span><span class=lnt>90
+</span><span class=lnt>91
+</span><span class=lnt>92
+</span><span class=lnt>93
+</span><span class=lnt>94
+</span><span class=lnt>95
+</span><span class=lnt>96
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=cp>#include</span> <span class=cpf>&lt;queue&gt;</span><span class=cp>
+</span><span class=cp>#include</span> <span class=cpf>&lt;unordered_map&gt;</span><span class=cp>
+</span><span class=cp></span><span class=k>using</span> <span class=k>namespace</span> <span class=n>std</span><span class=p>;</span>
+
+<span class=k>class</span> <span class=nc>MedianFinder</span>
+<span class=p>{</span>
+    <span class=n>priority_queue</span><span class=o>&lt;</span><span class=kt>int</span><span class=p>,</span> <span class=n>vector</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;</span><span class=p>,</span> <span class=n>greater</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;&gt;</span> <span class=n>minheap</span><span class=p>;</span>
+    <span class=n>priority_queue</span><span class=o>&lt;</span><span class=kt>int</span><span class=o>&gt;</span> <span class=n>maxheap</span><span class=p>;</span>
+    <span class=n>unordered_map</span><span class=o>&lt;</span><span class=kt>int</span><span class=p>,</span> <span class=kt>int</span><span class=o>&gt;</span> <span class=n>delayed</span><span class=p>;</span>
+    <span class=kt>int</span> <span class=n>minSize</span><span class=p>,</span><span class=n>maxSize</span><span class=p>;</span>    <span class=c1>//decrease delayed
+</span><span class=c1></span>    <span class=k>template</span> <span class=o>&lt;</span><span class=k>typename</span> <span class=n>T</span><span class=o>&gt;</span>
+    <span class=kt>void</span> <span class=n>prune</span><span class=p>(</span><span class=n>T</span> <span class=o>&amp;</span><span class=n>heap</span><span class=p>)</span>
+    <span class=p>{</span>
+        <span class=k>while</span> <span class=p>(</span><span class=o>!</span><span class=n>heap</span><span class=p>.</span><span class=n>empty</span><span class=p>())</span>
+        <span class=p>{</span>
+            <span class=kt>int</span> <span class=n>num</span> <span class=o>=</span> <span class=n>heap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+            <span class=k>if</span> <span class=p>(</span><span class=n>delayed</span><span class=p>.</span><span class=n>count</span><span class=p>(</span><span class=n>num</span><span class=p>))</span>
+            <span class=p>{</span>
+                <span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span><span class=o>--</span><span class=p>;</span>
+                <span class=k>if</span> <span class=p>(</span><span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span> <span class=o>==</span> <span class=mi>0</span><span class=p>)</span>
+                    <span class=n>delayed</span><span class=p>.</span><span class=n>erase</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+                <span class=n>heap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+            <span class=p>}</span>
+            <span class=k>else</span>
+                <span class=k>break</span><span class=p>;</span>
+        <span class=p>}</span>
+    <span class=p>}</span>
+
+    <span class=kt>void</span> <span class=nf>makebalance</span><span class=p>()</span>
+    <span class=p>{</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>maxSize</span> <span class=o>&gt;</span> <span class=n>minSize</span> <span class=o>+</span> <span class=mi>1</span><span class=p>)</span>
+        <span class=p>{</span>
+            <span class=n>minheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>());</span>
+            <span class=n>maxheap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+            <span class=n>minSize</span><span class=o>++</span><span class=p>;</span>
+            <span class=n>maxSize</span><span class=o>--</span><span class=p>;</span>
+            <span class=n>prune</span><span class=p>(</span><span class=n>maxheap</span><span class=p>);</span>
+        <span class=p>}</span>
+        <span class=k>else</span> <span class=k>if</span> <span class=p>(</span><span class=n>maxSize</span> <span class=o>&lt;</span> <span class=n>minSize</span> <span class=p>)</span>
+        <span class=p>{</span>
+            <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>());</span>
+            <span class=n>minheap</span><span class=p>.</span><span class=n>pop</span><span class=p>();</span>
+            <span class=n>maxSize</span><span class=o>++</span><span class=p>;</span>
+            <span class=n>minSize</span><span class=o>--</span><span class=p>;</span>
+            <span class=n>prune</span><span class=p>(</span><span class=n>minheap</span><span class=p>);</span>
+        <span class=p>}</span>
+    <span class=p>}</span>
+
+<span class=k>public</span><span class=o>:</span>
+    <span class=n>MedianFinder</span><span class=p>()</span><span class=o>:</span><span class=n>minSize</span><span class=p>(</span><span class=mi>0</span><span class=p>),</span><span class=n>maxSize</span><span class=p>(</span><span class=mi>0</span><span class=p>){}</span>
+
+    <span class=kt>void</span> <span class=nf>insert</span><span class=p>(</span><span class=kt>int</span> <span class=n>num</span><span class=p>)</span>
+    <span class=p>{</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>minheap</span><span class=p>.</span><span class=n>empty</span><span class=p>()</span> <span class=o>&amp;&amp;</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>empty</span><span class=p>()){</span>
+            <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+            <span class=n>maxSize</span><span class=o>++</span><span class=p>;</span>
+        <span class=p>}</span>
+        <span class=k>else</span>
+        <span class=p>{</span>
+            <span class=kt>int</span> <span class=n>topnum</span> <span class=o>=</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+            <span class=k>if</span> <span class=p>(</span><span class=n>topnum</span> <span class=o>&lt;</span> <span class=n>num</span><span class=p>){</span>
+                <span class=n>minheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+                <span class=n>minSize</span><span class=o>++</span><span class=p>;</span>
+            <span class=p>}</span>
+            <span class=k>else</span><span class=p>{</span>
+                <span class=n>maxheap</span><span class=p>.</span><span class=n>push</span><span class=p>(</span><span class=n>num</span><span class=p>);</span>
+                <span class=n>maxSize</span><span class=o>++</span><span class=p>;</span>
+            <span class=p>}</span>
+        <span class=p>}</span>
+        <span class=n>makebalance</span><span class=p>();</span>
+    <span class=p>}</span>
+
+    <span class=kt>void</span> <span class=nf>erase</span><span class=p>(</span><span class=kt>int</span> <span class=n>num</span><span class=p>)</span>
+    <span class=p>{</span>
+        <span class=n>delayed</span><span class=p>[</span><span class=n>num</span><span class=p>]</span><span class=o>++</span><span class=p>;</span>
+        <span class=k>if</span><span class=p>(</span><span class=n>num</span><span class=o>&lt;=</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>()){</span>
+            <span class=n>maxSize</span><span class=o>--</span><span class=p>;</span>
+            <span class=k>if</span> <span class=p>(</span><span class=n>num</span> <span class=o>==</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span>
+                <span class=n>prune</span><span class=p>(</span><span class=n>maxheap</span><span class=p>);</span>
+        <span class=p>}</span>
+        <span class=k>else</span><span class=p>{</span>
+            <span class=n>minSize</span><span class=o>--</span><span class=p>;</span>
+            <span class=k>if</span> <span class=p>(</span><span class=n>num</span> <span class=o>==</span> <span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span>
+                <span class=n>prune</span><span class=p>(</span><span class=n>minheap</span><span class=p>);</span>
+        <span class=p>}</span>
+        <span class=n>makebalance</span><span class=p>();</span>
+    <span class=p>}</span>
+
+    <span class=kt>double</span> <span class=nf>getMedian</span><span class=p>()</span>
+    <span class=p>{</span>
+        <span class=k>if</span> <span class=p>(</span><span class=n>minSize</span> <span class=o>==</span> <span class=n>maxSize</span> <span class=p>)</span>
+            <span class=k>return</span> <span class=p>((</span><span class=kt>double</span><span class=p>)</span><span class=n>minheap</span><span class=p>.</span><span class=n>top</span><span class=p>()</span> <span class=o>+</span> <span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>())</span> <span class=o>/</span> <span class=mi>2</span><span class=p>;</span><span class=c1>//防范int溢出
+</span><span class=c1></span>        <span class=k>else</span>
+            <span class=k>return</span> <span class=p>(</span><span class=kt>double</span><span class=p>)</span><span class=n>maxheap</span><span class=p>.</span><span class=n>top</span><span class=p>();</span>
+    <span class=p>}</span>
+<span class=p>};</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>代码里涉及细节处理问题颇多，还是很要仔细。</p>
+</div>
+<div class=post-copyright>
+<p class=copyright-item>
+<span class=item-title>Author</span>
+<span class=item-content><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</p>
+<p class=copyright-item>
+<span class=item-title>LastMod</span>
+<span class=item-content>
+2023-08-27
+<a href=https://github.com/lawrshen/lawrshen.github.io/commit/73a236cbe9c279f4e5aff55950a20a2cdc4e0859 title="factor dir and add backlog, smart-ptr">(73a236c)</a>
+</span>
+</p>
+<p class=copyright-item>
+<span class=item-title>License</span>
+<span class=item-content><a rel="license noopener" href=https://creativecommons.org/licenses/by-nc-nd/4.0/ target=_blank>CC BY-NC-ND 4.0</a></span>
+</p>
+</div>
+<footer class=post-footer>
+<div class=post-tags>
+<a href=/tags/heap/>heap</a>
+<a href=/tags/mid/>mid</a>
+</div>
+<nav class=post-nav>
+<a class=prev href=/post/hello-world/>
+<i class="iconfont icon-left"></i>
+<span class="prev-text nav-default">你好 世界</span>
+<span class="prev-text nav-mobile">Prev</span>
+</a>
+</nav>
+</footer>
+</article>
+</div>
+<div id=gitalk-container></div>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css crossorigin=anonymous>
+<script src=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js crossorigin=anonymous></script>
+<script type=text/javascript>var gitalk=new Gitalk({id:'2021-02-03 17:43:37 \u002b0800 \u002b0800',title:'堆的应用：动态找寻中位数',clientID:'878b112800a679d0f89d',clientSecret:'f3042138c809f6ab3311d584d341299b188b7844',repo:'lawrshen.github.io',owner:'lawrshen',admin:['lawrshen'],body:decodeURI(location.href)});gitalk.render('gitalk-container')</script>
+<noscript>Please enable JavaScript to view the <a href=https://github.com/gitalk/gitalk>comments powered by gitalk.</a></noscript>
+</div>
+</main>
+<footer id=footer class=footer>
+<div class=social-links>
+<a href=mailto:lawrshen@qq.com class="iconfont icon-email" title=email></a>
+<a href=https://github.com/lawrshen class="iconfont icon-github" title=github></a>
+<a href=https://lawrshen.github.io/index.xml type=application/rss+xml class="iconfont icon-rss" title=rss></a>
+</div>
+<div class=copyright>
+<span class=power-by>
+Powered by <a class=hexo-link href=https://gohugo.io>Hugo</a>
+</span>
+<span class=division>|</span>
+<span class=theme-info>
+Theme -
+<a class=theme-link href=https://github.com/olOwOlo/hugo-theme-even>Even</a>
+</span>
+<div class=busuanzi-footer>
+<span id=busuanzi_container_site_pv> site pv: <span id=busuanzi_value_site_pv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+<span class=division>|</span>
+<span id=busuanzi_container_site_uv> site uv: <span id=busuanzi_value_site_uv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+</div>
+<span class=copyright-year>
+&copy;
+2021 -
+2023<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</span>
+</div>
+</footer>
+<div class=back-to-top id=back-to-top>
+<i class="iconfont icon-up"></i>
+</div>
+</div>
+<script src=https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.min.js integrity="sha256-jwCP0NAdCBloaIWTWHmW4i3snUNMHUNO+jr9rYd2iOI=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.locales.min.js integrity="sha256-ZwofwC1Lf/faQCzN7nZtfijVV6hSwxjQMwXL4gn9qU8=" crossorigin=anonymous></script>
+<script>var languageCode="en".replace(/-/g,'_').replace(/_(.*)/,function(b,a){return b.replace(a,a.toUpperCase())});timeago().render(document.querySelectorAll('.timeago'),languageCode),timeago.cancel()</script>
+<script type=text/javascript src=/js/main.min.c99b103c33d1539acf3025e1913697534542c4a5aa5af0ccc20475ed2863603b.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga('create','G-FQBGCF2JH0','auto'),ga('set','anonymizeIp',!0),ga('send','pageview'))</script>
+<script async src=https://www.google-analytics.com/analytics.js></script>
+</body>
+</html>
