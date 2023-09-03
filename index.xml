@@ -296,7 +296,7 @@
 &lt;p>将hash值的低位当作Hmap结构体中buckets数组的index，找到key所在的bucket。&lt;/p>
 &lt;p>将hash的高8位存储在了bucket的tophash中，先比对高 8 bit，再比对 key 是否相等。&lt;/p>
 &lt;p>内存布局如果是 key1/value1/key2/value2，设想如果是这样的一个 &lt;code>map[int64]int8&lt;/code>，考虑到字节对齐，会浪费很多存储空间。&lt;/p>
-&lt;p>&lt;img src="../../source/go-hmap.jpg" alt="go-hmap">&lt;/p>
+&lt;p>&lt;img src="../../../source/go-hmap.jpg" alt="go-hmap">&lt;/p>
 &lt;h1 id="参考资料">参考资料&lt;/h1>
 &lt;p>&lt;a href="https://go.dev/blog/maps">https://go.dev/blog/maps&lt;/a>&lt;/p>
 &lt;p>&lt;a href="https://github.com/golang/go/blob/master/src/runtime/map.go">https://github.com/golang/go/blob/master/src/runtime/map.go&lt;/a>&lt;/p></description></item><item><title>分布式唯一 Id</title><link>https://lawrshen.github.io/post/se/id/</link><pubDate>Thu, 26 May 2022 17:55:06 +0800</pubDate><guid>https://lawrshen.github.io/post/se/id/</guid><description>&lt;h1 id="uuid">UUID&lt;/h1>
@@ -499,41 +499,43 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;p>（是为了减少谁的数据压力）；到达的数据序号可能是乱的吗，为什么，数据走的是用一条路径吗&lt;/p>
 &lt;p>IP 网络的拥挤引发了可能的拥塞。可能是乱序的，原因是因为网络中的路由器和路由器之间的路由表不是一个简单的链表，而是一个复杂的网络结构。&lt;/p>
 &lt;h3 id="拥塞控制算法">拥塞控制算法&lt;/h3>
+&lt;p>TL;DR&lt;/p>
+&lt;p>连接建立之初通过 &lt;code>慢启动&lt;/code> 指数增长注入网络包；试探到临界窗口值后使用拥塞避免算法，缓慢增长拥塞窗口；在收不到包一段时间（RTO时间）后，触发超时重传；拥塞窗口调整回1，再次进入慢启动阶段，临界窗口值根据上次拥塞窗口未发送的一半确定。&lt;/p>
+&lt;p>出现偶发丢包时，可以用3个dup ack触发快速重传。&lt;/p>
 &lt;h4 id="慢启动">&lt;strong>慢启动&lt;/strong>&lt;/h4>
 &lt;p>发送方维持一个叫做拥塞窗口cwnd（congestion window）的状态变量。拥塞窗口的大小取决于网络的拥塞程度，并且动态地在变化。发送方让自己的发送窗口等于拥塞窗口，另外考虑到接受方的接收能力，发送窗口可能小于拥塞窗口。&lt;/p>
 &lt;p>慢开始算法的思路就是，不要一开始就发送大量的数据，先探测一下网络的拥塞程度，也就是说由小到大逐渐增加拥塞窗口的大小。&lt;/p>
 &lt;p>这里用报文段的个数作为拥塞窗口的大小举例说明慢开始算法，实际的拥塞窗口大小是以字节为单位的。如下图：&lt;/p>
-&lt;p>&lt;img src="../../source/tcp/cwnd-start.png" alt="">&lt;/p>
+&lt;p>&lt;img src="../../../../source/tcp/cwnd-start.png" alt="">&lt;/p>
 &lt;p>从上图可以看到，一个传输轮次所经历的时间其实就是往返时间RTT，而且每经过一个传输轮次（transmission round），拥塞窗口cwnd就加倍。&lt;/p>
-&lt;p>为了防止cwnd增长过大引起网络拥塞，还需设置一个慢开始门限ssthresh状态变量。ssthresh的用法如下：当cwnd&amp;lt;ssthresh时，使用慢开始算法。
-当cwnd&amp;gt;ssthresh时，改用拥塞避免算法。
-当cwnd=ssthresh时，慢开始与拥塞避免算法任意&lt;/p>
+&lt;p>为了防止cwnd增长过大引起网络拥塞，还需设置一个慢开始门限ssthresh状态变量。&lt;/p>
 &lt;p>注意，这里的“慢”并不是指cwnd的增长速率慢，而是指在TCP开始发送报文段时先设置cwnd=1，然后逐渐增大，这当然比按照大的cwnd一下子把许多报文段突然注入到网络中要“慢得多”。&lt;/p>
 &lt;h4 id="拥塞避免">&lt;strong>拥塞避免&lt;/strong>&lt;/h4>
 &lt;p>拥塞避免算法让拥塞窗口缓慢增长，即每经过一个往返时间RTT就把发送方的拥塞窗口cwnd加1，而不是加倍。这样拥塞窗口按线性规律缓慢增长。&lt;/p>
 &lt;p>无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞（其根据就是没有按时收到确认，虽然没有收到确认可能是其他原因的分组丢失，但是因为无法判定，所以都当做拥塞来处理），就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半（但不能小于2）。然后把拥塞窗口cwnd重新设置为1，执行慢开始算法。这样做的目的就是要迅速减少主机发送到网络中的分组数，使得发生拥塞的路由器有足够时间把队列中积压的分组处理完毕。&lt;/p>
 &lt;p>整个拥塞控制的流程如下图：&lt;/p>
-&lt;p>&lt;img src="../../source/tcp/cwnd-example.png" alt="">&lt;/p>
-&lt;p>(1）拥塞窗口cwnd初始化为1个报文段，慢开始门限初始值为16
-（2）执行慢开始算法，指数规律增长到第4轮，即cwnd=16=ssthresh，改为执行拥塞避免算法，拥塞窗口按线性规律增长
-（3）假定cwnd=24时，网络出现超时（拥塞），则更新后的ssthresh=12，cwnd重新设置为1，并执行慢开始算法。当cwnd=12=ssthresh时，改为执行拥塞避免算法&lt;/p>
+&lt;p>&lt;img src="../../../../source/tcp/cwnd-example.png" alt="">&lt;/p>
+&lt;p>（1）拥塞窗口cwnd初始化为1个报文段，慢开始门限初始值为16&lt;/p>
+&lt;p>（2）执行慢开始算法，指数规律增长到第4轮，即cwnd=16=ssthresh，改为执行拥塞避免算法，拥塞窗口按线性规律增长&lt;/p>
+&lt;p>（3）假定cwnd=24时，网络出现超时（拥塞），则更新后的ssthresh=12，cwnd重新设置为1，并执行慢开始算法。当cwnd=12=ssthresh时，改为执行拥塞避免算法&lt;/p>
 &lt;p>关于 乘法减小（Multiplicative Decrease）和加法增大（Additive Increase）：&lt;/p>
 &lt;p>“乘法减小”指的是无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞，就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半，并执行慢开始算法，所以当网络频繁出现拥塞时，ssthresh下降的很快，以大大减少注入到网络中的分组数。“加法增大”是指执行拥塞避免算法后，使拥塞窗口缓慢增大，以防止过早出现拥塞。常合起来成为AIMD算法。&lt;/p>
 &lt;p>注意：“拥塞避免”并非完全能够避免了阻塞，而是使网络比较不容易出现拥塞。&lt;/p>
 &lt;h4 id="快重传">&lt;strong>快重传&lt;/strong>&lt;/h4>
 &lt;p>快重传要求接收方在收到一个失序的报文段后就立即发出重复确认（为的是使发送方及早知道有报文段没有到达对方，可提高网络吞吐量约20%）而不要等到自己发送数据时捎带确认。快重传算法规定，发送方只要一连收到三个重复确认就应当立即重传对方尚未收到的报文段，而不必继续等待设置的重传计时器时间到期。如下图：&lt;/p>
-&lt;p>&lt;img src="../../source/tcp/cwnd-fast.png" alt="">&lt;/p>
+&lt;p>&lt;img src="../../../../source/tcp/cwnd-fast.png" alt="">&lt;/p>
 &lt;h4 id="快恢复">&lt;strong>快恢复&lt;/strong>&lt;/h4>
 &lt;p>快重传配合使用的还有快恢复算法，有以下两个要点：&lt;/p>
 &lt;p>当发送方连续收到三个重复确认时，就执行“乘法减小”算法，把ssthresh门限减半（为了预防网络发生拥塞）。但是接下去并不执行慢开始算法
 考虑到如果网络出现拥塞的话就不会收到好几个重复的确认，所以发送方现在认为网络可能没有出现拥塞。所以此时不执行慢开始算法，而是将cwnd设置为ssthresh减半后的值，然后执行拥塞避免算法，使cwnd缓慢增大。如下图：TCP Reno版本是目前使用最广泛的版本。&lt;/p>
-&lt;p>&lt;img src="../../source/tcp/cwnd-total.png" alt="">&lt;/p>
-&lt;p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。&lt;/p></description></item><item><title>Mysql 索引</title><link>https://lawrshen.github.io/post/db/mysql-index/</link><pubDate>Tue, 17 May 2022 21:12:24 +0800</pubDate><guid>https://lawrshen.github.io/post/db/mysql-index/</guid><description>&lt;p>索引是 MySQL 对查询做的一个优化，把原本杂乱无章的数据，用有序的结构组织起来，让全表扫描变成有章可循的查询。&lt;/p>
+&lt;p>&lt;img src="../../../../source/tcp/cwnd-total.png" alt="">&lt;/p>
+&lt;p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。&lt;/p>
+&lt;p>另外，SACK算法会将收到包的信息一并发回，便于把丢失的多个包一次性发完。&lt;/p></description></item><item><title>Mysql 索引</title><link>https://lawrshen.github.io/post/db/mysql-index/</link><pubDate>Tue, 17 May 2022 21:12:24 +0800</pubDate><guid>https://lawrshen.github.io/post/db/mysql-index/</guid><description>&lt;p>索引是 MySQL 对查询做的一个优化，把原本杂乱无章的数据，用有序的结构组织起来，让全表扫描变成有章可循的查询。&lt;/p>
 &lt;p>索引的目的是&lt;strong>提高查找效率&lt;/strong>，对数据表的值集合进行了排序，并按照一定数据结构进行了存储。&lt;/p>
 &lt;h1 id="索引的数据结构">索引的数据结构&lt;/h1>
 &lt;p>在 MySQL 中，索引是在&lt;strong>存储引擎层&lt;/strong>实现的，而不同的存储引擎根据其业务场景特点会有不同的实现方式。&lt;/p>
 &lt;p>B+树索引是关系型数据库中最常见的一种索引，也将是本文的主角。可以简单的认为 B+树是一种 N 叉树和有序数组的结合体。&lt;/p>
-&lt;p>&lt;img src="../../source/b+tree.png" alt="b+ tree">&lt;/p>
+&lt;p>&lt;img src="../../../source/b+tree.png" alt="b+ tree">&lt;/p>
 &lt;p>B+树的 3 个优点:&lt;/p>
 &lt;ol>
 &lt;li>层级更低，IO 次数更少&lt;/li>
@@ -767,176 +769,8 @@ The constant is only limited by buffer size in the transport layer&lt;/p>
 &lt;p>awk名称来源于三个发明人首字母&amp;#160;&lt;a href="#fnref:3" class="footnote-backref" role="doc-backlink">&amp;#x21a9;&amp;#xfe0e;&lt;/a>&lt;/p>
 &lt;/li>
 &lt;/ol>
-&lt;/section></description></item><item><title>计算机网络缺失的一课 Http</title><link>https://lawrshen.github.io/post/net/http/http/</link><pubDate>Sun, 19 Sep 2021 15:47:09 +0800</pubDate><guid>https://lawrshen.github.io/post/net/http/http/</guid><description>&lt;div class="admonition info">&lt;p class="admonition-title">背景&lt;/p>
-&lt;p>上计网课的时候应用层协议蜻蜓点水的一笔带过了，期末也不设置考点，这块内容难免有所薄弱，但http协议作为常见的应用层协议，有一个基础的掌握还是有必要的。&lt;/p>
-&lt;/div>
-&lt;p>&lt;img src="../../source/http/HTTP1-3.jpg" alt="HTTP1-3">&lt;/p>
-&lt;h1 id="what-http-">what HTTP ?&lt;/h1>
-&lt;p>HTTP【HyperText Transfer Protocol「超文本传输协议」】 是一个在计算机世界里专门在两点之间传输文字、图片、音频、视频等超文本数据的约定和规范。&lt;/p>
-&lt;h1 id="http请求">http请求&lt;/h1>
-&lt;p>http请求由三部分组成，分别是：起始行、消息报头、请求正文&lt;/p>
-&lt;div class="highlight">&lt;div class="chroma">
-&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
-&lt;/span>&lt;span class="lnt">2
-&lt;/span>&lt;span class="lnt">3
-&lt;/span>&lt;span class="lnt">4
-&lt;/span>&lt;span class="lnt">5
-&lt;/span>&lt;span class="lnt">6
-&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
-&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">Request Line&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
-Header-Name: header-value&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
-Header-Name: header-value&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
-//一个或多个，均以&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>结尾
-&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">CRLF&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
-body//请求正文
-&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
-&lt;/div>
-&lt;/div>&lt;p>1、起始行以一个方法符号开头，以空格分开，后面跟着请求的URI和协议的版本，格式如下：&lt;/p>
-&lt;blockquote>
-&lt;p>Method Request-URI HTTP-Version CRLF&lt;/p>
-&lt;/blockquote>
-&lt;p>其中 Method表示请求方法；Request-URI是一个统一资源标识符；HTTP-Version表示请求的HTTP协议版本；CRLF表示回车和换行（除了作为结尾的CRLF外，不允许出现单独的CR或LF字符）。&lt;/p>
-&lt;p>&lt;img src="../../source/http/http-request.image" alt="http-request">&lt;/p>
-&lt;p>&lt;img src="../../source/http/http-request-example.image" alt="http-request-example">&lt;/p>
-&lt;p>2、请求方法（所有方法全为大写）有多种，各个方法的解释如下：&lt;/p>
-&lt;blockquote>
-&lt;ul>
-&lt;li>GET：请求获取Request-URI所标识的资源&lt;/li>
-&lt;li>POST：在Request-URI所标识的资源后附加新的数据&lt;/li>
-&lt;li>HEAD：求获取由Request-URI所标识的资源的响应消息报头&lt;/li>
-&lt;li>PUT：请求服务器存储一个资源，并用Request-URI作为其标识&lt;/li>
-&lt;li>DELETE：请求服务器删除Request-URI所标识的资源&lt;/li>
-&lt;li>TRACE：请求服务器回送收到的请求信息，主要用于测试或诊断&lt;/li>
-&lt;li>CONNECT：保留将来使用&lt;/li>
-&lt;li>OPTIONS：请求查询服务器的性能，或者查询与资源相关的选项和需求&lt;/li>
-&lt;/ul>
-&lt;/blockquote>
-&lt;hr>
-&lt;p>响应行的报文格式如下：&lt;/p>
-&lt;p>&lt;img src="../../source/http/response-line.image" alt="response-line">&lt;/p>
-&lt;p>示例：&lt;/p>
-&lt;p>&lt;img src="../../source/http/response-line-example.image" alt="response-line-example">&lt;/p>
-&lt;p>主要有五类状态码：&lt;/p>
-&lt;ul>
-&lt;li>1××：提示信息，表示目前是协议处理的中间状态，还需要后续的操作；&lt;/li>
-&lt;li>2××：成功，报文已经收到并被正确处理；&lt;/li>
-&lt;li>3××：重定向，资源位置发生变动，需要客户端重新发送请求；&lt;/li>
-&lt;li>4××：客户端错误，请求报文有误，服务器无法处理；&lt;/li>
-&lt;li>5××：服务器错误，服务器在处理请求时内部发生了错误。&lt;/li>
-&lt;/ul>
-&lt;p>内容协议请求头和对应的响应头对应关系如下:&lt;/p>
-&lt;p>&lt;img src="../../source/http/http-req-res.image" alt="http-req-res">&lt;/p>
-&lt;h1 id="http-框架">HTTP 框架&lt;/h1>
-&lt;p>HTTP 协议是当今使用最为广泛的协议之一，HTTP是前(客户)端与服务端通信的基础协议，大家在学校课程中和大作业中应该或多或少都接触过。像这一张图就是一个前后端分离的一个流程图了，前后端之间通过 HTTP 请求进行通信。那 HTTP 框架负责的就是对 HTTP 请求的解析、根据对应的路由选择对应的后端逻辑了，也就是图上标出来的这些。除了在学校中的使用，HTTP 在企业实际业务场景中也使用广泛，目前字节跳动内部的 HTTP 服务达上万个。然而很多学校会简单讲一下 http 协议是什么，并不会很深入的讲解，同学们考试稍微看一看就可以过了。在大作业中也只是用到 HTTP 框架，保证本地可以演示出正确的 case 就 OK 了，对于 HTTP 框架的内部完全不了解，那这样在真是的工作场景中万万不足够的。那这门课我希望能够带大家了解一下 HTTP 框架的设计与实现，知道 HTTP 框架为什么要这么做，之后呢能够更好的使用 HTTP 框架开发项目，甚至说对大家的其他项目也希望有所帮助。&lt;/p>
-&lt;p>那关于课程目录呢，这门课我会首先带领大家熟悉一下 HTTP 协议的相关的知识，复习一下学校里学过的只是知识，也为之后协议的优化打下基础。在了解了协议之后之后会给大家介绍一下一个HTTP框架是如何设计与实现的，应该考虑哪些点，这部分也是本课程的一个重点。那这部分我们可以让一个框架 run 起来，不管白猫黑猫，先逮着耗子。那 run 起来之后我们还需要让框架有一个高性能。第三部分相比起前两部分可能要稍微难一点，是我们在真实场景中针对 HTTP 框架所做的一些优化实践，同学们平时在设计接口的时候也可以根据这些优化的点，了解框架为了解析 HTTP 协议的一些痛点，设计出高效的接口，而且这部分优化手段也是通用的，同学们在平时的工程中也可以使用这些手段。最后一部分，我们正在解决的一些难题，以及我工作后主要在做的一些事情。&lt;/p>
-&lt;p>&lt;img src="../../source/http/http-framework.image" alt="http-framework">&lt;/p>
-&lt;h1 id="一个常见的-post-请求在协议层做了什么">一个常见的 post 请求在协议层做了什么？&lt;/h1>
-&lt;p>那我们既然看到协议里面有什么了之后，我们可以把刚刚我们看到的东西把它总结下来，首先是一个请求行，状态行，就是我们对应的 first line. 然后之后就是一些元数据请求头响应头。最后就是一个再再往后的话就是一个请求体响应体。 那针对我们的请求行。其实刚刚我们也看到了，它是由方法名、 URL 和协议版本组成，那方法名其实就比较多了，我们常见的方法名就 get get 就是我们 htp 0.9 里面唯一的一个方法。然后之后我们在 1.0 里面扩充了 header 和 post 然后 1.1 里面又陆陆续续扩充了 5 个，然后从 put 开始到 trace 然后最终到一个patch。patch的话其实它是在 1.1 之后额外新增的一个方法名。但是它因为使用得比较广泛，我们把它列在了这里. patch 的话其实它的语义跟我们的 put 其实是非常类似的。这里有同学清楚这边我们的 patch 和 put具体有些什么具体的区别吗？如果了解的话可以打在那个聊天窗。OKOK 没错， patch 的话就是我们的部分更新以及我们的 put 它的语义是完整地更新，所以这就是它的一个比较细微的一个区别在这里了（PUT 是幂等的，而 PATCH 不是幂等的。）。 那状态行的话其实刚刚也看到了，也是一个比较经典的三段式，就是我们的协议版本状态码以状态码描述。 这边就不再过多地赘述了，相信大家对这个已经非常的熟悉了。然后接下来是我们的请求头响应头其实也是一个非常清晰的一个划分。我们主要是分为协议约定的相关的。比如说我们刚刚看到的 content 就是我们指定我们的 body 有多少字节，然后以及业务相关的，那就是我们自己定义的需要传输传递的一些源数据了。好的，然后最后是请强响应体响应体，这就不再继续在这里展开去描述了。&lt;/p>
-&lt;h1 id="http-框架的设计与实现">HTTP 框架的设计与实现&lt;/h1>
-&lt;p>网络协议天然的分层设计，实现了专注性、拓展性和复用性。&lt;/p>
-&lt;p>HTTP架构整体上分五层，层与层之间使用接口耦合。&lt;/p>
-&lt;ol>
-&lt;li>暴露在最外面的就是应用层，和用户直接打交道，对请求抽象，例如：request、response、context。这一层也会提供一些丰富的易用的API。&lt;/li>
-&lt;li>下一层就是中间件层，可以对请求有一些预处理和后处理的逻辑。像我们可以打一些 accesslog,打一些耗时的点，其他中间件比如 Reacovery 中间件用于捕获 Panic。&lt;/li>
-&lt;li>之后是路由层，注册、路由寻址&lt;/li>
-&lt;li>再接下来是协议层，支持多种协议&lt;/li>
-&lt;li>最后是网络层，不同网络库场景不同&lt;/li>
-&lt;li>此外 common 层放一些公共逻辑&lt;/li>
-&lt;/ol>
-&lt;h3 id="中间件需求">中间件需求&lt;/h3>
-&lt;ul>
-&lt;li>配合 handler 实现一个完整的请求处理生命周期&lt;/li>
-&lt;li>拥有预处理逻辑和后处理逻辑&lt;/li>
-&lt;li>可以注册多中间件&lt;/li>
-&lt;li>对上层模块用户逻辑模块易用&lt;/li>
-&lt;/ul>
-&lt;p>中间件典型模型：洋葱模型。
-请求过来，先经过一个日志中间件预处理，再经过 metrics 中间件预处理，处理完了后再执行一个真正的业务逻辑。
-最后再退出业务逻辑之后，我们会有一个后处理。一个 metric 中间件的后处理，接着一个日志中间件的后处理。
-最终将真正的响应（response）返回给用户。
-这个中间件的核心是将核心逻辑与通用逻辑分离。&lt;/p>
-&lt;h3 id="网络层">网络层&lt;/h3>
-&lt;p>那有了 epoll 之后，C10K的问题就可以解决了吗？ 我们在这里设想一个场景，就比如说你打客服电话，客服跟我说问我身份证号是多少，那这时候我忘了身份证号多少，我就必须说你等一下，我去找一下这个身份证，但我又没找着，那这个客服是不是占线，那占线的话他就什么都做不了，然后并在这里占住了，他等不下去了，就等到了超时。&lt;/p>
-&lt;p>那这种编程模型在互联网界就叫 block io，简称 bio 我们可以看下面这段代码，这段代码是go一个经典的connection处理，我们在一个 go function 里面维护一个 listener 那它 listener 每次 accept 获取一个连接之后，我们会开一个 goroutine 去单独处理它。这 goroutine 行为应该是先去读取数据，读取完之后然后处理业务逻辑，然后再把这个response写回去。这是一个比较经典的 go 的写法，那它就是一种 block io 编程模型。&lt;/p>
-&lt;div class="highlight">&lt;div class="chroma">
-&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
-&lt;/span>&lt;span class="lnt"> 2
-&lt;/span>&lt;span class="lnt"> 3
-&lt;/span>&lt;span class="lnt"> 4
-&lt;/span>&lt;span class="lnt"> 5
-&lt;/span>&lt;span class="lnt"> 6
-&lt;/span>&lt;span class="lnt"> 7
-&lt;/span>&lt;span class="lnt"> 8
-&lt;/span>&lt;span class="lnt"> 9
-&lt;/span>&lt;span class="lnt">10
-&lt;/span>&lt;span class="lnt">11
-&lt;/span>&lt;span class="lnt">12
-&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
-&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code class="language-GO" data-lang="GO">&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(){&lt;/span>
-&lt;span class="k">for&lt;/span>&lt;span class="p">{&lt;/span>
-&lt;span class="nx">conn&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">listener&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Accept&lt;/span>&lt;span class="p">()&lt;/span>
-&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conn&lt;/span> &lt;span class="nx">net&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Conn&lt;/span>&lt;span class="p">){&lt;/span>
-&lt;span class="k">defer&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
-&lt;span class="nx">buf&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">make&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="kt">byte&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">1024&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="nx">n&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">[:&lt;/span>&lt;span class="nx">n&lt;/span>&lt;span class="p">]))&lt;/span>
-&lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="nb">byte&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;hello world&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
-&lt;span class="p">}(&lt;/span>&lt;span class="nx">conn&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="p">}&lt;/span>
-&lt;span class="p">}&lt;/span>
-&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
-&lt;/div>
-&lt;/div>&lt;p>因为假如说你在读数据的时候读到了一半，它就读在这里了，它啥也干不了。&lt;/p>
-&lt;p>那有没有解决这种问题的办法，也比较简单，我们在中间引入一种通知的机制，就是当他数据有一半的时候，我让客服小姐姐也去干别的事情。那当它后续把整个包都已经发完的时候，我们再去通知他去处理，这样的话就不会阻塞。是在互联网界就是non block IO 的一种编程模式，它就是非阻塞的。&lt;/p>
-&lt;div class="highlight">&lt;div class="chroma">
-&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
-&lt;/span>&lt;span class="lnt"> 2
-&lt;/span>&lt;span class="lnt"> 3
-&lt;/span>&lt;span class="lnt"> 4
-&lt;/span>&lt;span class="lnt"> 5
-&lt;/span>&lt;span class="lnt"> 6
-&lt;/span>&lt;span class="lnt"> 7
-&lt;/span>&lt;span class="lnt"> 8
-&lt;/span>&lt;span class="lnt"> 9
-&lt;/span>&lt;span class="lnt">10
-&lt;/span>&lt;span class="lnt">11
-&lt;/span>&lt;span class="lnt">12
-&lt;/span>&lt;span class="lnt">13
-&lt;/span>&lt;span class="lnt">14
-&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
-&lt;td class="lntd">
-&lt;pre tabindex="0" class="chroma">&lt;code class="language-GO" data-lang="GO">&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(){&lt;/span>
-&lt;span class="k">for&lt;/span>&lt;span class="p">{&lt;/span>
-&lt;span class="nx">readableConns&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nf">Monitor&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conns&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="k">for&lt;/span> &lt;span class="nx">coon&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="k">range&lt;/span> &lt;span class="nx">readableConns&lt;/span>&lt;span class="p">{&lt;/span>
-&lt;span class="k">go&lt;/span> &lt;span class="kd">func&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">conn&lt;/span> &lt;span class="nx">net&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Conn&lt;/span>&lt;span class="p">){&lt;/span>
-&lt;span class="k">defer&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Close&lt;/span>&lt;span class="p">()&lt;/span>
-&lt;span class="nx">buf&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nb">make&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="kt">byte&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="mi">1024&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="nx">n&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="nx">_&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Read&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="nx">fmt&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Println&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">buf&lt;/span>&lt;span class="p">[:&lt;/span>&lt;span class="nx">n&lt;/span>&lt;span class="p">]))&lt;/span>
-&lt;span class="nx">conn&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Write&lt;/span>&lt;span class="p">([]&lt;/span>&lt;span class="nb">byte&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;hello world&amp;#34;&lt;/span>&lt;span class="p">))&lt;/span>
-&lt;span class="p">}(&lt;/span>&lt;span class="nx">conn&lt;/span>&lt;span class="p">)&lt;/span>
-&lt;span class="p">}&lt;/span>
-&lt;span class="p">}&lt;/span>
-&lt;span class="p">}&lt;/span>
-&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
-&lt;/div>
-&lt;/div>&lt;p>我们可以看一下刚才那段伪代码改成这段伪代码之后是什么样子，就是上面我们在第一个go function里面还是维护这个连接， accept 但是每次我们拿到这个连接之后，我们把它加到一个监听器里面，比如说 add 这个链接，然后我们在另外一个部分里面去轮询这个 monitor 就是监听器，我们搜索可读的连接数。因为这里 monitor 它已经知道有数据了，但我们这个服务方式去执行的时候可能是 read 这时候就能拿到完整的数据并处理，然后再返回，这个时候整个流程是没有阻塞的。&lt;/p>
-&lt;p>go 的网络库中 go/net 就是 BIO 的，而 netpoll 则是 NIO 的。&lt;/p>
-&lt;h3 id="小结一下">小结一下&lt;/h3>
-&lt;p>API设计：可理解性、简单性
-中间件设计：洋葱模型
-路由设计：前缀匹配树
-协议层设计：抽象出合适的接口
-网络层设计：网络模型&lt;/p>
-&lt;h1 id="reference">reference&lt;/h1>
-&lt;p>&lt;a href="https://www.cnblogs.com/xiekun/p/14221020.html">51张图掌握HTTP&lt;/a>&lt;/p></description></item><item><title>Go Mod版本管理概要</title><link>https://lawrshen.github.io/post/golang/go-mod/</link><pubDate>Sun, 12 Sep 2021 16:02:02 +0800</pubDate><guid>https://lawrshen.github.io/post/golang/go-mod/</guid><description>&lt;p>一图概述Go MOD版本管理：&lt;/p>
-&lt;p>&lt;img src="../../source/gomod.png" alt="GO MOD">&lt;/p>
+&lt;/section></description></item><item><title>Go Mod版本管理概要</title><link>https://lawrshen.github.io/post/golang/go-mod/</link><pubDate>Sun, 12 Sep 2021 16:02:02 +0800</pubDate><guid>https://lawrshen.github.io/post/golang/go-mod/</guid><description>&lt;p>一图概述Go MOD版本管理：&lt;/p>
+&lt;p>&lt;img src="../../../source/gomod.png" alt="GO MOD">&lt;/p>
 &lt;h1 id="关于go关于语言">关于go，关于语言&lt;/h1>
 &lt;p>&lt;code>SICP&lt;/code>指出，在学习一门编程语言时要特别注意以下三个方面：&lt;/p>
 &lt;ol>
@@ -1114,7 +948,7 @@ sudo apt-get install zsh
 &lt;/div>&lt;p>剩下就是初次配置的例行操作。&lt;/p>
 &lt;h2 id="主题字体">主题字体&lt;/h2>
 &lt;p>主题虽然好看但是可能会有font的问题，这里在WSL下的terminal遇到比较费劲的困难记录如下：&lt;/p>
-&lt;p>比起官方非常大文件的下载，这里其实只需要安装&lt;a href="../../source/JetBrains%20Mono%20Regular%20Nerd%20Font%20Complete.ttf">JetBrains Mono Regular Nerd Font Complete.ttf&lt;/a>,存放在&lt;code>\usr\share\fonts\&lt;/code>目录下，然后更新字体缓存。&lt;/p>
+&lt;p>比起官方非常大文件的下载，这里其实只需要安装&lt;a href="../../../source/JetBrains%20Mono%20Regular%20Nerd%20Font%20Complete.ttf">JetBrains Mono Regular Nerd Font Complete.ttf&lt;/a>,存放在&lt;code>\usr\share\fonts\&lt;/code>目录下，然后更新字体缓存。&lt;/p>
 &lt;div class="highlight">&lt;div class="chroma">
 &lt;table class="lntable">&lt;tr>&lt;td class="lntd">
 &lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1

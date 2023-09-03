@@ -29,11 +29,11 @@
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://lawrshen.github.io/post/net/tcp/tcp/"><meta property="article:section" content="post">
 <meta property="article:published_time" content="2022-05-19T10:40:25+08:00">
-<meta property="article:modified_time" content="2023-08-27T16:00:03+08:00">
+<meta property="article:modified_time" content="2023-09-03T14:55:23+08:00">
 <meta itemprop=name content="简谈TCP的可靠传输">
 <meta itemprop=description content="TCP可靠传输知识点简谈"><meta itemprop=datePublished content="2022-05-19T10:40:25+08:00">
-<meta itemprop=dateModified content="2023-08-27T16:00:03+08:00">
-<meta itemprop=wordCount content="2401">
+<meta itemprop=dateModified content="2023-09-03T14:55:23+08:00">
+<meta itemprop=wordCount content="2482">
 <meta itemprop=keywords content="tcp,network,"><meta name=twitter:card content="summary">
 <meta name=twitter:title content="简谈TCP的可靠传输">
 <meta name=twitter:description content="TCP可靠传输知识点简谈"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
@@ -93,7 +93,7 @@
 <div class=post-category>
 <a href=/categories/coding/> coding </a>
 </div>
-<span class=more-meta> 2401 words </span>
+<span class=more-meta> 2482 words </span>
 <span class=more-meta> 5 mins read </span>
 <span id=busuanzi_container_page_pv class=more-meta> <span id=busuanzi_value_page_pv><img src=/img/spinner.svg alt=spinner.svg></span> times read </span>
 </div>
@@ -148,36 +148,38 @@ The constant is only limited by buffer size in the transport layer</p>
 <p>（是为了减少谁的数据压力）；到达的数据序号可能是乱的吗，为什么，数据走的是用一条路径吗</p>
 <p>IP 网络的拥挤引发了可能的拥塞。可能是乱序的，原因是因为网络中的路由器和路由器之间的路由表不是一个简单的链表，而是一个复杂的网络结构。</p>
 <h3 id=拥塞控制算法>拥塞控制算法</h3>
+<p>TL;DR</p>
+<p>连接建立之初通过 <code>慢启动</code> 指数增长注入网络包；试探到临界窗口值后使用拥塞避免算法，缓慢增长拥塞窗口；在收不到包一段时间（RTO时间）后，触发超时重传；拥塞窗口调整回1，再次进入慢启动阶段，临界窗口值根据上次拥塞窗口未发送的一半确定。</p>
+<p>出现偶发丢包时，可以用3个dup ack触发快速重传。</p>
 <h4 id=慢启动><strong>慢启动</strong></h4>
 <p>发送方维持一个叫做拥塞窗口cwnd（congestion window）的状态变量。拥塞窗口的大小取决于网络的拥塞程度，并且动态地在变化。发送方让自己的发送窗口等于拥塞窗口，另外考虑到接受方的接收能力，发送窗口可能小于拥塞窗口。</p>
 <p>慢开始算法的思路就是，不要一开始就发送大量的数据，先探测一下网络的拥塞程度，也就是说由小到大逐渐增加拥塞窗口的大小。</p>
 <p>这里用报文段的个数作为拥塞窗口的大小举例说明慢开始算法，实际的拥塞窗口大小是以字节为单位的。如下图：</p>
-<p><img src=../../source/tcp/cwnd-start.png alt></p>
+<p><img src=../../../../source/tcp/cwnd-start.png alt></p>
 <p>从上图可以看到，一个传输轮次所经历的时间其实就是往返时间RTT，而且每经过一个传输轮次（transmission round），拥塞窗口cwnd就加倍。</p>
-<p>为了防止cwnd增长过大引起网络拥塞，还需设置一个慢开始门限ssthresh状态变量。ssthresh的用法如下：当cwnd&lt;ssthresh时，使用慢开始算法。
-当cwnd>ssthresh时，改用拥塞避免算法。
-当cwnd=ssthresh时，慢开始与拥塞避免算法任意</p>
+<p>为了防止cwnd增长过大引起网络拥塞，还需设置一个慢开始门限ssthresh状态变量。</p>
 <p>注意，这里的“慢”并不是指cwnd的增长速率慢，而是指在TCP开始发送报文段时先设置cwnd=1，然后逐渐增大，这当然比按照大的cwnd一下子把许多报文段突然注入到网络中要“慢得多”。</p>
 <h4 id=拥塞避免><strong>拥塞避免</strong></h4>
 <p>拥塞避免算法让拥塞窗口缓慢增长，即每经过一个往返时间RTT就把发送方的拥塞窗口cwnd加1，而不是加倍。这样拥塞窗口按线性规律缓慢增长。</p>
 <p>无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞（其根据就是没有按时收到确认，虽然没有收到确认可能是其他原因的分组丢失，但是因为无法判定，所以都当做拥塞来处理），就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半（但不能小于2）。然后把拥塞窗口cwnd重新设置为1，执行慢开始算法。这样做的目的就是要迅速减少主机发送到网络中的分组数，使得发生拥塞的路由器有足够时间把队列中积压的分组处理完毕。</p>
 <p>整个拥塞控制的流程如下图：</p>
-<p><img src=../../source/tcp/cwnd-example.png alt></p>
-<p>(1）拥塞窗口cwnd初始化为1个报文段，慢开始门限初始值为16
-（2）执行慢开始算法，指数规律增长到第4轮，即cwnd=16=ssthresh，改为执行拥塞避免算法，拥塞窗口按线性规律增长
-（3）假定cwnd=24时，网络出现超时（拥塞），则更新后的ssthresh=12，cwnd重新设置为1，并执行慢开始算法。当cwnd=12=ssthresh时，改为执行拥塞避免算法</p>
+<p><img src=../../../../source/tcp/cwnd-example.png alt></p>
+<p>（1）拥塞窗口cwnd初始化为1个报文段，慢开始门限初始值为16</p>
+<p>（2）执行慢开始算法，指数规律增长到第4轮，即cwnd=16=ssthresh，改为执行拥塞避免算法，拥塞窗口按线性规律增长</p>
+<p>（3）假定cwnd=24时，网络出现超时（拥塞），则更新后的ssthresh=12，cwnd重新设置为1，并执行慢开始算法。当cwnd=12=ssthresh时，改为执行拥塞避免算法</p>
 <p>关于 乘法减小（Multiplicative Decrease）和加法增大（Additive Increase）：</p>
 <p>“乘法减小”指的是无论是在慢开始阶段还是在拥塞避免阶段，只要发送方判断网络出现拥塞，就把慢开始门限ssthresh设置为出现拥塞时的发送窗口大小的一半，并执行慢开始算法，所以当网络频繁出现拥塞时，ssthresh下降的很快，以大大减少注入到网络中的分组数。“加法增大”是指执行拥塞避免算法后，使拥塞窗口缓慢增大，以防止过早出现拥塞。常合起来成为AIMD算法。</p>
 <p>注意：“拥塞避免”并非完全能够避免了阻塞，而是使网络比较不容易出现拥塞。</p>
 <h4 id=快重传><strong>快重传</strong></h4>
 <p>快重传要求接收方在收到一个失序的报文段后就立即发出重复确认（为的是使发送方及早知道有报文段没有到达对方，可提高网络吞吐量约20%）而不要等到自己发送数据时捎带确认。快重传算法规定，发送方只要一连收到三个重复确认就应当立即重传对方尚未收到的报文段，而不必继续等待设置的重传计时器时间到期。如下图：</p>
-<p><img src=../../source/tcp/cwnd-fast.png alt></p>
+<p><img src=../../../../source/tcp/cwnd-fast.png alt></p>
 <h4 id=快恢复><strong>快恢复</strong></h4>
 <p>快重传配合使用的还有快恢复算法，有以下两个要点：</p>
 <p>当发送方连续收到三个重复确认时，就执行“乘法减小”算法，把ssthresh门限减半（为了预防网络发生拥塞）。但是接下去并不执行慢开始算法
 考虑到如果网络出现拥塞的话就不会收到好几个重复的确认，所以发送方现在认为网络可能没有出现拥塞。所以此时不执行慢开始算法，而是将cwnd设置为ssthresh减半后的值，然后执行拥塞避免算法，使cwnd缓慢增大。如下图：TCP Reno版本是目前使用最广泛的版本。</p>
-<p><img src=../../source/tcp/cwnd-total.png alt></p>
+<p><img src=../../../../source/tcp/cwnd-total.png alt></p>
 <p>注意：在采用快恢复算法时，慢开始算法只是在TCP连接建立时和网络出现超时时才使用。</p>
+<p>另外，SACK算法会将收到包的信息一并发回，便于把丢失的多个包一次性发完。</p>
 </div>
 <div class=post-copyright>
 <p class=copyright-item>
@@ -187,8 +189,8 @@ The constant is only limited by buffer size in the transport layer</p>
 <p class=copyright-item>
 <span class=item-title>LastMod</span>
 <span class=item-content>
-2023-08-27
-<a href=https://github.com/lawrshen/lawrshen.github.io/commit/73a236cbe9c279f4e5aff55950a20a2cdc4e0859 title="factor dir and add backlog, smart-ptr">(73a236c)</a>
+2023-09-03
+<a href=https://github.com/lawrshen/lawrshen.github.io/commit/3e798982ce739ba46cd73876e19c12fa2c29a8ab title="fix: tcp blog&source path">(3e79898)</a>
 </span>
 </p>
 <p class=copyright-item>
