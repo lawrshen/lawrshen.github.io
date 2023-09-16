@@ -1,4 +1,70 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sun, 27 Aug 2023 15:23:41 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Tcp三次握手与Backlog</title><link>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</link><pubDate>Sun, 27 Aug 2023 15:23:41 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</guid><description>&lt;h1 id="三次握手">三次握手&lt;/h1>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 16 Sep 2023 16:34:34 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Groupcache源码简读</title><link>https://lawrshen.github.io/post/code/groupcache/</link><pubDate>Sat, 16 Sep 2023 16:34:34 +0800</pubDate><guid>https://lawrshen.github.io/post/code/groupcache/</guid><description>&lt;p>&lt;a href="https://github.com/golang/groupcache">GroupCache&lt;/a> 是一款分布式缓存组件，最早被用于 &lt;a href="https://go.dev/talks/2013/oscon-dl.slide#1">dl.google.com&lt;/a> 的文件下载。代码短小精炼，设计思想也值得学习。&lt;/p>
+&lt;h1 id="组件特点">组件特点&lt;/h1>
+&lt;ul>
+&lt;li>分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取舍保证一致性&lt;/li>
+&lt;li>只有读操作，在第一次cache miss时候回调写入数据，不可更改，没有过期时间，意味着只适用于存储 immutable 的数据，例如文件&lt;/li>
+&lt;li>singleflight 防止缓存穿透，多个相同的请求只有一个会打倒后端，避免&lt;a href="https://en.wikipedia.org/wiki/Thundering_herd_problem">惊群效应&lt;/a>&lt;/li>
+&lt;li>一致性hash做数据分片，LRU做数据逐出，pb做传输格式&lt;/li>
+&lt;/ul>
+&lt;h1 id="面向接口编程">面向接口编程&lt;/h1>
+&lt;p>代码中的各个组件都体现了面向接口编程的优秀实践，核心参考Group结构体：&lt;/p>
+&lt;ul>
+&lt;li>ByteView:
+&lt;ul>
+&lt;li>[]byte&amp;amp;string封装，缓存返回的value结构&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Sink:
+&lt;ul>
+&lt;li>负责从一个Get调用中接收缓存数据，对接ByteView，从ByteView中获取数据，起到一个中间人的作用，和ByteView的关系有点类似DO和DTO/VO的关系&lt;/li>
+&lt;li>groupcache提供了不同的Sink实现类来满足不同数据格式的要求，内置的有string、byte和proto&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Group
+&lt;ul>
+&lt;li>标识一个唯一的缓存的命名空间，暴露Get接口&lt;/li>
+&lt;li>维护对缓存各种操作和结果的统计信息&lt;/li>
+&lt;li>缓存的写入和缓存的维护，包括本地的缓存，以及一些hot cache的维护（目前这一块不是很完美，只是一个简单的随机将从其他peer中获取的缓存写入hot cache中，命中率10%）&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>PeerPicker
+&lt;ul>
+&lt;li>根据key获取缓存对应的Peer&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>HTTPPool
+&lt;ul>
+&lt;li>简单的Http server/client，groupcache默认的peer选择器&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>flightGroup
+&lt;ul>
+&lt;li>singleflight.Do()，防止缓存击穿&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>lru.Cache
+&lt;ul>
+&lt;li>基于Map构建的一个缓存结构，采用LRU算法进行缓存淘汰&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>cache
+&lt;ul>
+&lt;li>lru.Cache + 读写锁 + 统计信息，相当于是lru.Cache的代理结构，统计了缓存命中次数、Get请求次数以及缓存逐出次数等&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>组件关系图如下：&lt;/p>
+&lt;p>&lt;img src="../../../source/groupcache/uml.png" alt="UML">&lt;/p>
+&lt;h1 id="核心流程">核心流程&lt;/h1>
+&lt;p>&lt;code>Get操作&lt;/code>是整个groupcache的最核心的流程，具体流程为：&lt;/p>
+&lt;ol>
+&lt;li>初始化PeerPicker实例（sync.Once保证只初始化一次），并统计Get请求次数&lt;/li>
+&lt;li>读本地cache，统计命中数据（如有）&lt;/li>
+&lt;li>读 peer cache，写入本地 cache（针对同一key的请求涌入情况，使用singleflight防止缓存击穿，保证只有一个请求发起remote cache的get请求）&lt;/li>
+&lt;li>缓存无数据，发起回调函数向后端取数据，并写入本地缓存&lt;/li>
+&lt;/ol>
+&lt;h1 id="使用示例">使用示例&lt;/h1>
+&lt;p>TBC&amp;hellip;&lt;/p></description></item><item><title>Tcp三次握手与Backlog</title><link>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</link><pubDate>Sun, 27 Aug 2023 15:23:41 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tcp-backlog/</guid><description>&lt;h1 id="三次握手">三次握手&lt;/h1>
 &lt;p>服务端通过系统调用&lt;code>bind()&lt;/code>和&lt;code>listen()&lt;/code>绑定和监听socket-port，此时服务端处于 &lt;strong>LISTEN&lt;/strong> 状态，当客户端调用 &lt;code>connect()&lt;/code> 向服务端发起连接时，就进入到我们熟悉的三次握手当中。&lt;/p>
 &lt;ul>
 &lt;li>客户端向服务端发送SYN报文，同时TCP连接处于 &lt;code>SYN_SEND&lt;/code> 状态&lt;/li>

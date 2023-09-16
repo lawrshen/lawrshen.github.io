@@ -2,7 +2,7 @@
 <head>
 <meta charset=utf-8>
 <meta http-equiv=x-ua-compatible content="IE=edge,chrome=1">
-<title>Tcp三次握手与Backlog - Don`t Panic :-)</title>
+<title>Groupcache源码简读 - Don`t Panic :-)</title>
 <meta name=renderer content="webkit">
 <meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta http-equiv=cache-control content="no-transform">
@@ -13,9 +13,9 @@
 <meta name=apple-mobile-web-app-status-bar-style content="#f8f5ec">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-FQBGCF2JH0"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-FQBGCF2JH0')</script>
-<meta name=author content="lawrshen"><meta name=description content="TCP Backlog"><meta name=keywords content="Blog,计算机技术,分享">
+<meta name=author content="lawrshen"><meta name=description content="GroupCache 是一款分布式缓存组件，最早被用于 dl.google.com 的文件下载。代码短小精炼，设计思想也值得学习。 组件特点 分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取"><meta name=keywords content="Blog,计算机技术,分享">
 <meta name=generator content="Hugo 0.87.0 with theme even">
-<link rel=canonical href=https://lawrshen.github.io/post/net/tcp/tcp-backlog/>
+<link rel=canonical href=https://lawrshen.github.io/post/code/groupcache/>
 <link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
 <link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
 <link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
@@ -24,19 +24,19 @@
 <script async src=//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js></script>
 <link href=/sass/main.min.f92fd13721ddf72129410fd8250e73152cc6f2438082b6c0208dc24ee7c13fc4.css rel=stylesheet>
 <link rel=stylesheet href=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin=anonymous>
-<meta property="og:title" content="Tcp三次握手与Backlog">
-<meta property="og:description" content="TCP Backlog">
+<meta property="og:title" content="Groupcache源码简读">
+<meta property="og:description" content="GroupCache 是一款分布式缓存组件，最早被用于 dl.google.com 的文件下载。代码短小精炼，设计思想也值得学习。 组件特点 分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://lawrshen.github.io/post/net/tcp/tcp-backlog/"><meta property="article:section" content="post">
-<meta property="article:published_time" content="2023-08-27T15:23:41+08:00">
-<meta property="article:modified_time" content="2023-08-27T16:00:03+08:00">
-<meta itemprop=name content="Tcp三次握手与Backlog">
-<meta itemprop=description content="TCP Backlog"><meta itemprop=datePublished content="2023-08-27T15:23:41+08:00">
-<meta itemprop=dateModified content="2023-08-27T16:00:03+08:00">
-<meta itemprop=wordCount content="1084">
-<meta itemprop=keywords content="tcp,network,"><meta name=twitter:card content="summary">
-<meta name=twitter:title content="Tcp三次握手与Backlog">
-<meta name=twitter:description content="TCP Backlog"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
+<meta property="og:url" content="https://lawrshen.github.io/post/code/groupcache/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2023-09-16T16:34:34+08:00">
+<meta property="article:modified_time" content="2023-09-16T20:46:50+08:00">
+<meta itemprop=name content="Groupcache源码简读">
+<meta itemprop=description content="GroupCache 是一款分布式缓存组件，最早被用于 dl.google.com 的文件下载。代码短小精炼，设计思想也值得学习。 组件特点 分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取"><meta itemprop=datePublished content="2023-09-16T16:34:34+08:00">
+<meta itemprop=dateModified content="2023-09-16T20:46:50+08:00">
+<meta itemprop=wordCount content="931">
+<meta itemprop=keywords content="Groupcache,golang,sourceCode,"><meta name=twitter:card content="summary">
+<meta name=twitter:title content="Groupcache源码简读">
+<meta name=twitter:description content="GroupCache 是一款分布式缓存组件，最早被用于 dl.google.com 的文件下载。代码短小精炼，设计思想也值得学习。 组件特点 分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
 <script src=https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js></script><![endif]-->
 </head>
 <body>
@@ -87,14 +87,14 @@
 <div id=content class=content>
 <article class=post>
 <header class=post-header>
-<h1 class=post-title>Tcp三次握手与Backlog</h1>
+<h1 class=post-title>Groupcache源码简读</h1>
 <div class=post-meta>
-<span class=post-time> 2023-08-27 </span>
+<span class=post-time> 2023-09-16 </span>
 <div class=post-category>
 <a href=/categories/coding/> coding </a>
 </div>
-<span class=more-meta> 1084 words </span>
-<span class=more-meta> 3 mins read </span>
+<span class=more-meta> 931 words </span>
+<span class=more-meta> 2 mins read </span>
 <span id=busuanzi_container_page_pv class=more-meta> <span id=busuanzi_value_page_pv><img src=/img/spinner.svg alt=spinner.svg></span> times read </span>
 </div>
 </header>
@@ -103,54 +103,82 @@
 <div class="post-toc-content always-active">
 <nav id=TableOfContents>
 <ul>
-<li><a href=#三次握手>三次握手</a></li>
-<li><a href=#全连接队列与半连接队列>全连接队列与半连接队列</a></li>
-<li><a href=#backlog>backlog</a></li>
-<li><a href=#相关linux的网络异常问题>相关Linux的网络异常问题</a></li>
-<li><a href=#排查工具>排查工具</a></li>
-<li><a href=#调优策略>调优策略</a></li>
+<li><a href=#组件特点>组件特点</a></li>
+<li><a href=#面向接口编程>面向接口编程</a></li>
+<li><a href=#核心流程>核心流程</a></li>
+<li><a href=#使用示例>使用示例</a></li>
 </ul>
 </nav>
 </div>
 </div>
 <div class=post-content>
-<h1 id=三次握手>三次握手</h1>
-<p>服务端通过系统调用<code>bind()</code>和<code>listen()</code>绑定和监听socket-port，此时服务端处于 <strong>LISTEN</strong> 状态，当客户端调用 <code>connect()</code> 向服务端发起连接时，就进入到我们熟悉的三次握手当中。</p>
+<p><a href=https://github.com/golang/groupcache>GroupCache</a> 是一款分布式缓存组件，最早被用于 <a href=https://go.dev/talks/2013/oscon-dl.slide#1>dl.google.com</a> 的文件下载。代码短小精炼，设计思想也值得学习。</p>
+<h1 id=组件特点>组件特点</h1>
 <ul>
-<li>客户端向服务端发送SYN报文，同时TCP连接处于 <code>SYN_SEND</code> 状态</li>
-<li>服务端收到SYN报文后，会向客户端发送SYN+ACK报文，同时服务端TCP连接处于 <code>SYN_RECV</code> 状态</li>
-<li>客户端收到SYN+ACK报文后，会再次向服务端发送ACK报文确认连接建立，同时客户端TCP连接状态变为 <code>ESTABLISHED</code></li>
-<li>服务端收到客户端的再次确认后，TCP连接也将变为ESTABLISHED</li>
+<li>分布式缓存，通过 HTTP 协议达成节点之间通信，用功能的取舍保证一致性</li>
+<li>只有读操作，在第一次cache miss时候回调写入数据，不可更改，没有过期时间，意味着只适用于存储 immutable 的数据，例如文件</li>
+<li>singleflight 防止缓存穿透，多个相同的请求只有一个会打倒后端，避免<a href=https://en.wikipedia.org/wiki/Thundering_herd_problem>惊群效应</a></li>
+<li>一致性hash做数据分片，LRU做数据逐出，pb做传输格式</li>
 </ul>
-<h1 id=全连接队列与半连接队列>全连接队列与半连接队列</h1>
-<p>在三次握手过程中，服务端通过两个数据结构来维护连接状态，即syns queue (半连接队列)和accept queue (全连接队列)</p>
+<h1 id=面向接口编程>面向接口编程</h1>
+<p>代码中的各个组件都体现了面向接口编程的优秀实践，核心参考Group结构体：</p>
 <ul>
-<li>当服务端收到SYN报文后，会将该连接信息放到syns queue中</li>
-<li>当服务端收到ACK报文后，会将这个连接从syns queue中转移到accept queue中，此时TCP连接建立完成</li>
-<li>处于accept queue中的连接，服务端还要通过系统调用accept()把该套接字取走，才能进行客户端到服务端的数据传输</li>
-</ul>
-<h1 id=backlog>backlog</h1>
-<p>backlog用来限制全连接队列的大小，对应Linux内核参数 somaxconn，min(backlog,somaxconn)就是全连接队列的最大容量限制，两个值分别由用户和内核设置。顺带一提这也是为什么redis在某些机器上运行报错的原因，因为redis.conf设置了tcp-backlog是511。</p>
-<p>半连接队列也有大小限制，对应Linux内核参数tcp_max_syn_backlog，实际大小取决于三者最小值。</p>
-<p>当客户端发送SYN报文，而此时半连接队列已满时就会丢弃，客户端会进行 tcp_syn_retries 次的重试，或者到达应用层时间限制，返回 connection timeout 的异常。</p>
-<p>当服务端收到第三次握手的 ACK 时，若全连接队列已满，会根据 tcp_abort_on_overflow 选择是抛弃ack还是发RST。如果抛弃ack了，类似的进行 tcp_synack_retries。</p>
-<h1 id=相关linux的网络异常问题>相关Linux的网络异常问题</h1>
+<li>ByteView:
 <ul>
-<li>SYN-FLOOD：打满第一次握手的半连接队列的限制容量。</li>
-<li>backlog过小，无法建立连接，导致502 bad gateway的错误</li>
-<li>backlog过大，处理跟不上，导致超时，504</li>
+<li>[]byte&string封装，缓存返回的value结构</li>
 </ul>
-<h1 id=排查工具>排查工具</h1>
-<p>netstat或ss</p>
+</li>
+<li>Sink:
 <ul>
-<li>ss -lnt，若连接处于LISTEN状态，Recv-Q、Send-Q分别代表了全连接队列的连接数、容量；非LISTEN状态Recv-Q是缓冲区还未被应用程序取走的字节数，Send-Q表示还未被远端确认的字节数</li>
-<li>netstat -s可以看统计信息</li>
+<li>负责从一个Get调用中接收缓存数据，对接ByteView，从ByteView中获取数据，起到一个中间人的作用，和ByteView的关系有点类似DO和DTO/VO的关系</li>
+<li>groupcache提供了不同的Sink实现类来满足不同数据格式的要求，内置的有string、byte和proto</li>
 </ul>
-<h1 id=调优策略>调优策略</h1>
+</li>
+<li>Group
 <ul>
-<li>高并发场景增大backlog</li>
-<li>最好QPS=backlog，以免服务超时关闭，进一步导致 broken pipe</li>
+<li>标识一个唯一的缓存的命名空间，暴露Get接口</li>
+<li>维护对缓存各种操作和结果的统计信息</li>
+<li>缓存的写入和缓存的维护，包括本地的缓存，以及一些hot cache的维护（目前这一块不是很完美，只是一个简单的随机将从其他peer中获取的缓存写入hot cache中，命中率10%）</li>
 </ul>
+</li>
+<li>PeerPicker
+<ul>
+<li>根据key获取缓存对应的Peer</li>
+</ul>
+</li>
+<li>HTTPPool
+<ul>
+<li>简单的Http server/client，groupcache默认的peer选择器</li>
+</ul>
+</li>
+<li>flightGroup
+<ul>
+<li>singleflight.Do()，防止缓存击穿</li>
+</ul>
+</li>
+<li>lru.Cache
+<ul>
+<li>基于Map构建的一个缓存结构，采用LRU算法进行缓存淘汰</li>
+</ul>
+</li>
+<li>cache
+<ul>
+<li>lru.Cache + 读写锁 + 统计信息，相当于是lru.Cache的代理结构，统计了缓存命中次数、Get请求次数以及缓存逐出次数等</li>
+</ul>
+</li>
+</ul>
+<p>组件关系图如下：</p>
+<p><img src=../../../source/groupcache/uml.png alt=UML></p>
+<h1 id=核心流程>核心流程</h1>
+<p><code>Get操作</code>是整个groupcache的最核心的流程，具体流程为：</p>
+<ol>
+<li>初始化PeerPicker实例（sync.Once保证只初始化一次），并统计Get请求次数</li>
+<li>读本地cache，统计命中数据（如有）</li>
+<li>读 peer cache，写入本地 cache（针对同一key的请求涌入情况，使用singleflight防止缓存击穿，保证只有一个请求发起remote cache的get请求）</li>
+<li>缓存无数据，发起回调函数向后端取数据，并写入本地缓存</li>
+</ol>
+<h1 id=使用示例>使用示例</h1>
+<p>TBC&mldr;</p>
 </div>
 <div class=post-copyright>
 <p class=copyright-item>
@@ -160,8 +188,8 @@
 <p class=copyright-item>
 <span class=item-title>LastMod</span>
 <span class=item-content>
-2023-08-27
-<a href=https://github.com/lawrshen/lawrshen.github.io/commit/73a236cbe9c279f4e5aff55950a20a2cdc4e0859 title="factor dir and add backlog, smart-ptr">(73a236c)</a>
+2023-09-16
+<a href=https://github.com/lawrshen/lawrshen.github.io/commit/18de3bd48895ae37fbf5c9b3999ad65051771428 title="feat(code): groupcache">(18de3bd)</a>
 </span>
 </p>
 <p class=copyright-item>
@@ -171,17 +199,13 @@
 </div>
 <footer class=post-footer>
 <div class=post-tags>
-<a href=/tags/tcp/>tcp</a>
-<a href=/tags/network/>network</a>
+<a href=/tags/groupcache/>Groupcache</a>
+<a href=/tags/golang/>golang</a>
+<a href=/tags/sourcecode/>sourceCode</a>
 </div>
 <nav class=post-nav>
-<a class=prev href=/post/code/groupcache/>
-<i class="iconfont icon-left"></i>
-<span class="prev-text nav-default">Groupcache源码简读</span>
-<span class="prev-text nav-mobile">Prev</span>
-</a>
-<a class=next href=/post/c++/smart-ptr/>
-<span class="next-text nav-default">浅谈modern c++的智能指针</span>
+<a class=next href=/post/net/tcp/tcp-backlog/>
+<span class="next-text nav-default">Tcp三次握手与Backlog</span>
 <span class="next-text nav-mobile">Next</span>
 <i class="iconfont icon-right"></i>
 </a>
@@ -192,7 +216,7 @@
 <div id=gitalk-container></div>
 <link rel=stylesheet href=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css crossorigin=anonymous>
 <script src=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js crossorigin=anonymous></script>
-<script type=text/javascript>var gitalk=new Gitalk({id:'2023-08-27 15:23:41 \u002b0800 \u002b0800',title:'Tcp三次握手与Backlog',clientID:'878b112800a679d0f89d',clientSecret:'f3042138c809f6ab3311d584d341299b188b7844',repo:'lawrshen.github.io',owner:'lawrshen',admin:['lawrshen'],body:decodeURI(location.href)});gitalk.render('gitalk-container')</script>
+<script type=text/javascript>var gitalk=new Gitalk({id:'2023-09-16 16:34:34 \u002b0800 \u002b0800',title:'Groupcache源码简读',clientID:'878b112800a679d0f89d',clientSecret:'f3042138c809f6ab3311d584d341299b188b7844',repo:'lawrshen.github.io',owner:'lawrshen',admin:['lawrshen'],body:decodeURI(location.href)});gitalk.render('gitalk-container')</script>
 <noscript>Please enable JavaScript to view the <a href=https://github.com/gitalk/gitalk>comments powered by gitalk.</a></noscript>
 </div>
 </main>
