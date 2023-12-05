@@ -1,4 +1,288 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sun, 17 Sep 2023 23:59:50 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>流量控制（TC）五十年 思维导图</title><link>https://lawrshen.github.io/post/net/tcp/tc/</link><pubDate>Sun, 17 Sep 2023 23:59:50 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tc/</guid><description>&lt;blockquote>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Don`t Panic :-)</title><link>https://lawrshen.github.io/</link><description>Recent content on Don`t Panic :-)</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Tue, 28 Nov 2023 09:42:09 +0800</lastBuildDate><atom:link href="https://lawrshen.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>浅谈 C++ 的构造函数</title><link>https://lawrshen.github.io/post/c++/construct/</link><pubDate>Tue, 28 Nov 2023 09:42:09 +0800</pubDate><guid>https://lawrshen.github.io/post/c++/construct/</guid><description>&lt;p>在 C++ 里，关注一个对象的“生命周期”，意味着了解如何创建对象、拷贝(COPY)对象、移动(MOVE)对象以及如何销毁对象，首先来定义什么是 COPY 和 MOVE:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-c++" data-lang="c++">&lt;span class="n">string&lt;/span> &lt;span class="nf">ident&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">string&lt;/span> &lt;span class="n">arg&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="c1">// string passed by value (copied into arg)
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">{&lt;/span>
+&lt;span class="k">return&lt;/span> &lt;span class="n">arg&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// return str ing (move the value of arg out of ident() to a caller)
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;span class="kt">int&lt;/span> &lt;span class="nf">main&lt;/span> &lt;span class="p">()&lt;/span>
+&lt;span class="p">{&lt;/span>
+&lt;span class="n">string&lt;/span> &lt;span class="n">s1&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="s">&amp;#34;Adams&amp;#34;&lt;/span>&lt;span class="p">};&lt;/span> &lt;span class="c1">// initialize str ing (constr uct in s1).
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">s1&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">indet&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">s1&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// copy s1 into ident()
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// move the result of ident(s1) into s1;
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// s1’s value is &amp;#34;Adams&amp;#34;.
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">string&lt;/span> &lt;span class="n">s2&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="s">&amp;#34;Pratchett&amp;#34;&lt;/span>&lt;span class="p">};&lt;/span> &lt;span class="c1">// initialize str ing (constr uct in s2)
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">s1&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">s2&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// copy the value of s2 into s1
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// both s1 and s2 have the value &amp;#34;Pratchett&amp;#34;.
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这个例子用到了多个函数：&lt;/p>
+&lt;ol>
+&lt;li>s1和s2用字符串常量初始化string的构造函数&lt;/li>
+&lt;li>传值的函数入参做了 copy&lt;/li>
+&lt;li>返回时将结果 move 到一个临时变量&lt;/li>
+&lt;li>move 临时变量到 s1&lt;/li>
+&lt;li>s2 拷贝赋值到 s1&lt;/li>
+&lt;li>析构函数释放所有资源&lt;/li>
+&lt;/ol>
+&lt;p>总结一个通用的类 X 需要下面这些构造函数：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-c++" data-lang="c++">&lt;span class="k">class&lt;/span> &lt;span class="nc">X&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="n">X&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">Sometype&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// ordinary constructor: create an object
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">X&lt;/span>&lt;span class="p">();&lt;/span> &lt;span class="c1">// default constructor
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">X&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// copy constructor
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">X&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// move constructor
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="k">operator&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// copy assignment: clean up target and copy
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&lt;/span>&lt;span class="k">operator&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">X&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// move assignment: clean up target and move
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="err">˜&lt;/span>&lt;span class="n">X&lt;/span>&lt;span class="p">();&lt;/span> &lt;span class="c1">// destructor: clean up
+&lt;/span>&lt;span class="c1">&lt;/span> &lt;span class="c1">// ...
+&lt;/span>&lt;span class="c1">&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="构造函数和析构函数">构造函数和析构函数&lt;/h1>
+&lt;ul>
+&lt;li>构造函数中常常要保证一些 invariant（不变式），类似于 size 必须严格和类中的数量相等。&lt;/li>
+&lt;li>构造函数可以很好的与继承关系配合，自顶向下的创建对象，沿着 &lt;code>基类-&amp;gt;成员-&amp;gt;自身&lt;/code> 的顺序进行构造。析构则反之。&lt;/li>
+&lt;li>在内存区域显式管理内存时可能会手动调用构造/析构函数，例如 vector 的 push_back 和 pop_back，会进行放置式 new。&lt;/li>
+&lt;li>基类的析构函数应当被声明为 virtual。&lt;/li>
+&lt;/ul>
+&lt;h1 id="类对象初始化">类对象初始化&lt;/h1>
+&lt;ul>
+&lt;li>Init Without Constructors
+&lt;ul>
+&lt;li>基础类型直接初始化&lt;/li>
+&lt;li>无构造函数类可以用 逐成员、copy、default init&lt;/li>
+&lt;li>要注意默认类型只声明的时候是不初始化的&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>Init Using Constructors
+&lt;ul>
+&lt;li>显示定义了一个构造函数后，默认构造函数就消失了，但是拷贝构造函数依然有默认实现&lt;/li>
+&lt;li>推荐用 {} 初始化，而不是 ()、=，{} 不允许窄化转换&lt;/li>
+&lt;li>constructor 可以用 std::initializer_list 作为参数做初始化，要保证相互之间是同构的（homogeneous）&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul></description></item><item><title>Leveldb Table 结构解析</title><link>https://lawrshen.github.io/post/code/leveldb/table/</link><pubDate>Tue, 17 Oct 2023 09:46:08 +0800</pubDate><guid>https://lawrshen.github.io/post/code/leveldb/table/</guid><description>&lt;h1 id="table-结构">table 结构&lt;/h1>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-markdown" data-lang="markdown">Table data structure:
++ optional
+/
++--------------+--------------+--------------+------+-------+-----------------+-------------+--------+
+| data block 1 | ... | data block n | filter block | metaindex block | index block | footer |
++--------------+--------------+--------------+--------------+-----------------+-------------+--------+
+Each block followed by a 5-bytes trailer contains compression type and checksum.
+Table block trailer:
++---------------------------+-------------------+
+| compression type (1-byte) | checksum (4-byte) |
++---------------------------+-------------------+
+The checksum is a CRC-32 computed using Castagnoli&amp;#39;s polynomial. Compression
+type also included in the checksum.
+Table footer:
++------------------- 40-bytes -------------------+
+/ \
++------------------------+--------------------+------+-----------------+
+| metaindex block handle / index block handle / ---- | magic (8-bytes) |
++------------------------+--------------------+------+-----------------+
+The magic are first 64-bit of SHA-1 sum of &amp;#34;http://code.google.com/p/leveldb/&amp;#34;.
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="block-结构">block 结构&lt;/h1>
+&lt;p>若干 kv entry 和结尾的 trailer 组成了 block，kv entry做了前缀优化，并且设置restart point，记录完整key值。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;span class="lnt">43
+&lt;/span>&lt;span class="lnt">44
+&lt;/span>&lt;span class="lnt">45
+&lt;/span>&lt;span class="lnt">46
+&lt;/span>&lt;span class="lnt">47
+&lt;/span>&lt;span class="lnt">48
+&lt;/span>&lt;span class="lnt">49
+&lt;/span>&lt;span class="lnt">50
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-markdown" data-lang="markdown">Block data structure:
++ restart point + restart point (depends on restart interval)
+/ /
++---------------+---------------+---------------+---------------+---------+
+| block entry 1 | block entry 2 | ... | block entry n | trailer |
++---------------+---------------+---------------+---------------+---------+
+Key/value entry:
++---- key len ----+
+/ \
++-------+---------+-----------+---------+--------------------+--------------+----------------+
+| shared (varint) | not shared (varint) | value len (varint) | key (varlen) | value (varlen) |
++-----------------+---------------------+--------------------+--------------+----------------+
+Block entry shares key prefix with its preceding key:
+Conditions:
+restart_interval=2
+entry one : key=deck,value=v1
+entry two : key=dock,value=v2
+entry three: key=duck,value=v3
+The entries will be encoded as follow:
++ restart point (offset=0) + restart point (offset=16)
+/ /
++-----+-----+-----+----------+--------+-----+-----+-----+---------+--------+-----+-----+-----+----------+--------+
+| 0 | 4 | 2 | &amp;#34;deck&amp;#34; | &amp;#34;v1&amp;#34; | 1 | 3 | 2 | &amp;#34;ock&amp;#34; | &amp;#34;v2&amp;#34; | 0 | 4 | 2 | &amp;#34;duck&amp;#34; | &amp;#34;v3&amp;#34; |
++-----+-----+-----+----------+--------+-----+-----+-----+---------+--------+-----+-----+-----+----------+--------+
+\ / \ / \ /
++----------- entry one -----------+ +----------- entry two ----------+ +---------- entry three ----------+
+The block trailer will contains two restart points:
++------------+-----------+--------+
+| 0 | 16 | 2 |
++------------+-----------+---+----+
+\ / \
++-- restart points --+ + restart points length
+Block trailer:
++-- 4-bytes --+
+/ \
++-----------------+-----------------+-----------------+------------------------------+
+| restart point 1 | .... | restart point n | restart points len (4-bytes) |
++-----------------+-----------------+-----------------+------------------------------+
+NOTE: All fixed-length integer are little-endian.
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="filter-block-结构">filter block 结构&lt;/h1>
+&lt;p>若干 filter data 和结尾的 trailer 组成了 Filter block。trailer 包含了各个 data 对应的 offset、trailer 自身 offset，还有 1-byte base Lg。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-markdown" data-lang="markdown">Filter block data structure:
++ offset 1 + offset 2 + offset n + trailer offset
+/ / / /
++---------------+---------------+---------------+---------+
+| filter data 1 | ... | filter data n | trailer |
++---------------+---------------+---------------+---------+
+Filter block trailer:
++- 4-bytes -+
+/ \
++---------------+---------------+---------------+-------------------------------+------------------+
+| data 1 offset | .... | data n offset | data-offsets offset (4-bytes) | base Lg (1-byte) |
++-------------- +---------------+---------------+-------------------------------+------------------+
+NOTE: All fixed-length integer are little-endian.
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h1 id="block-builder">block builder&lt;/h1></description></item><item><title>流量控制（TC）五十年 思维导图</title><link>https://lawrshen.github.io/post/net/tcp/tc/</link><pubDate>Sun, 17 Sep 2023 23:59:50 +0800</pubDate><guid>https://lawrshen.github.io/post/net/tcp/tc/</guid><description>&lt;blockquote>
 &lt;p>文章《&lt;a href="https://arthurchiao.art/blog/traffic-control-from-queue-to-edt-zh/#11-%E6%8A%80%E6%9C%AF%E9%9C%80%E6%B1%82%E4%B8%8E%E7%BD%91%E7%BB%9C%E8%B5%B7%E6%BA%90">[译] 流量控制（TC）五十年：从基于缓冲队列（Queue）到基于时间（EDT）的演进（Google, 2018）&lt;/a>》翻译介绍了 Netdev 2018: &lt;a href="https://www.youtube.com/watch?v=MAni0_lN7zE&amp;amp;ab_channel=netdevconf">Evolving from AFAP: Teaching NICs about time&lt;/a> 和 &lt;a href="https://documents.pub/document/oct-2018-david-wetherall-presenter-nandita-dukkipati-talks2018davidwetherall.html">OCT 2018: From Queues to Earliest Departure Time&lt;/a> 两份工作的大体内容，总结成思维导图如下：&lt;/p>
 &lt;/blockquote>
 &lt;p>&lt;img src="../../../../source/tcp/tc.png" alt="tc">&lt;/p>
@@ -164,7 +448,7 @@
 &lt;ul>
 &lt;li>高并发场景增大backlog&lt;/li>
 &lt;li>最好QPS=backlog，以免服务超时关闭，进一步导致 broken pipe&lt;/li>
-&lt;/ul></description></item><item><title>浅谈modern c++的智能指针</title><link>https://lawrshen.github.io/post/c++/smart-ptr/</link><pubDate>Fri, 13 Jan 2023 13:41:19 +0800</pubDate><guid>https://lawrshen.github.io/post/c++/smart-ptr/</guid><description>&lt;p>手动的内存管理通常被认为很麻烦切不利于程序的可读性，modern C++ 采用智能指针的方式对内存进行动态管理，本文试图对智能指针做一个简单的入门介绍。&lt;/p>
+&lt;/ul></description></item><item><title>浅谈modern c++的智能指针</title><link>https://lawrshen.github.io/post/c++/smart-ptr/</link><pubDate>Fri, 13 Jan 2023 13:41:19 +0800</pubDate><guid>https://lawrshen.github.io/post/c++/smart-ptr/</guid><description>&lt;p>手动的内存管理通常被认为很麻烦且不利于程序的可维护性，modern C++ 采用智能指针的方式对内存进行动态管理，本文试图对智能指针做一个简单的入门介绍。&lt;/p>
 &lt;h1 id="raii-与智能指针">RAII 与智能指针&lt;/h1>
 &lt;p>在《C++ 程序设计》一书中5.2.1提到，智能指针和资源管理息息相关，普通作用域里的变量依靠构造和析构函数完成了&lt;code>资源获取即初始化&lt;/code>（RAII, Resource Acquisition Is Initialization），对于自由分配的对象，作用域为全局空间，&lt;memory>标准库提供了智能指针来管理。&lt;/p>
 &lt;p>智能指针的核心原理如下：&lt;/p>
@@ -200,6 +484,25 @@
 &lt;li>unique_ptr对象消亡&lt;/li>
 &lt;li>unique_ptr被另一个指针通过 &lt;code>operator=&lt;/code> 或 &lt;code>reset()&lt;/code> 赋值。&lt;/li>
 &lt;/ul>
+&lt;h1 id="shared_ptr">shared_ptr&lt;/h1>
+&lt;p>引用计数通过指针去管理控制块，一个控制块存放了引用计数、weak_ptr的数量、删除器、分配器等。做到多个shared_ptr之间的计数能共享，同步更新。比如：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-C++" data-lang="C++">&lt;span class="n">shared_ptr&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">A&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">sp1&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">make_shared&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">A&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;span class="p">...&lt;/span>
+&lt;span class="n">shared_ptr&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">A&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">sp2&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">sp1&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">...&lt;/span>
+&lt;span class="n">shared_ptr&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">A&lt;/span>&lt;span class="o">&amp;gt;&lt;/span> &lt;span class="n">sp3&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">sp1&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>sp2 这样也能感知到 sp3 带来的引用计数的变化。&lt;/p>
 &lt;h1 id="参考">参考&lt;/h1>
 &lt;ul>
 &lt;li>&lt;a href="http://chenweixiang.github.io/docs/The_C++_Programming_Language_4th_Edition_Bjarne_Stroustrup.pdf">The C++ Programming Language Fourth Edition&lt;/a>&lt;/li>

@@ -111,6 +111,11 @@
 </nav>
 </div>
 </div>
+<div class=post-outdated>
+<div class=hint>
+<p>[NOTE] Updated <span class=timeago datetime=2023-08-27T16:00:03 title="August 27, 2023">August 27, 2023</span>. This article may have outdated content or subject matter.</p>
+</div>
+</div>
 <div class=post-content>
 <p>最近在写测试脚本的需求时深感自己Linux命令知识的单薄，有很多常见且强大的命令不会使用，抓紧学习，在这记录一下<code>awk</code>命令解析。</p>
 <p>谈到<code>awk</code>自然还会提到<code>grep</code>和<code>sed</code>，他们都是Linux下常用的文本处理工具，grep<sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup>主要使用正则做文本搜索，并把匹配内容打印出来，而<strong>替换</strong>匹配内容功能可以由sed<sup id=fnref:2><a href=#fn:2 class=footnote-ref role=doc-noteref>2</a></sup>完成。而最早awk<sup id=fnref:3><a href=#fn:3 class=footnote-ref role=doc-noteref>3</a></sup>目的是文本处理，基础是<a href=https://zh.wikipedia.org/wiki/AWK>“只要在输入数据中有模式匹配，就执行一系列指令”</a>，这听着挺编译原理语义分析的。AWK还具有完全属于其本身的语法，可以支持循环，数组这样复杂的程序设计，比较擅长处理<strong>格式化的文本</strong>，比如 日志、csv 格式数据。</p>

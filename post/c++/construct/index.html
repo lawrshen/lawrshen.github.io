@@ -1,0 +1,290 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="IE=edge,chrome=1">
+<title>浅谈 C++ 的构造函数 - Don`t Panic :-)</title>
+<meta name=renderer content="webkit">
+<meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta http-equiv=cache-control content="no-transform">
+<meta http-equiv=cache-control content="no-siteapp">
+<meta name=theme-color content="#f8f5ec">
+<meta name=msapplication-navbutton-color content="#f8f5ec">
+<meta name=apple-mobile-web-app-capable content="yes">
+<meta name=apple-mobile-web-app-status-bar-style content="#f8f5ec">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FQBGCF2JH0"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-FQBGCF2JH0')</script>
+<meta name=author content="lawrshen"><meta name=description content="c++构造函数"><meta name=keywords content="Blog,计算机技术,分享">
+<meta name=generator content="Hugo 0.87.0 with theme even">
+<link rel=canonical href=https://lawrshen.github.io/post/c++/construct/>
+<link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
+<link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
+<link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
+<link rel=manifest href=/manifest.json>
+<link rel=mask-icon href=/safari-pinned-tab.svg color=#5bbad5>
+<script async src=//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js></script>
+<link href=/sass/main.min.f92fd13721ddf72129410fd8250e73152cc6f2438082b6c0208dc24ee7c13fc4.css rel=stylesheet>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin=anonymous>
+<meta property="og:title" content="浅谈 C++ 的构造函数">
+<meta property="og:description" content="c++构造函数">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://lawrshen.github.io/post/c++/construct/"><meta property="article:section" content="post">
+<meta property="article:published_time" content="2023-11-28T09:42:09+08:00">
+<meta property="article:modified_time" content="2023-12-05T21:54:54+08:00">
+<meta itemprop=name content="浅谈 C++ 的构造函数">
+<meta itemprop=description content="c++构造函数"><meta itemprop=datePublished content="2023-11-28T09:42:09+08:00">
+<meta itemprop=dateModified content="2023-12-05T21:54:54+08:00">
+<meta itemprop=wordCount content="714">
+<meta itemprop=keywords content="c++,c++11,move,"><meta name=twitter:card content="summary">
+<meta name=twitter:title content="浅谈 C++ 的构造函数">
+<meta name=twitter:description content="c++构造函数"><!--[if lte IE 9]><script src=https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js></script><![endif]--><!--[if lt IE 9]><script src=https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js></script>
+<script src=https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js></script><![endif]-->
+</head>
+<body>
+<div id=mobile-navbar class=mobile-navbar>
+<div class=mobile-header-logo>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<div class=mobile-navbar-icon>
+<span></span>
+<span></span>
+<span></span>
+</div>
+</div>
+<nav id=mobile-menu class="mobile-menu slideout-menu">
+<ul class=mobile-menu-list>
+<a href=/>
+<li class=mobile-menu-item>Home</li>
+</a><a href=/post/>
+<li class=mobile-menu-item>Archives</li>
+</a><a href=/categories/>
+<li class=mobile-menu-item>Categories</li>
+</a><a href=/about/>
+<li class=mobile-menu-item>About</li>
+</a>
+</ul>
+</nav>
+<div class=container id=mobile-panel>
+<header id=header class=header>
+<div class=logo-wrapper>
+<a href=/ class=logo>Don`t Panic :-)</a>
+</div>
+<nav class=site-navbar>
+<ul id=menu class=menu>
+<li class=menu-item>
+<a class=menu-item-link href=/>Home</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/post/>Archives</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/categories/>Categories</a>
+</li><li class=menu-item>
+<a class=menu-item-link href=/about/>About</a>
+</li>
+</ul>
+</nav>
+</header>
+<main id=main class=main>
+<div class=content-wrapper>
+<div id=content class=content>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title>浅谈 C++ 的构造函数</h1>
+<div class=post-meta>
+<span class=post-time> 2023-11-28 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 714 words </span>
+<span class=more-meta> 2 mins read </span>
+<span id=busuanzi_container_page_pv class=more-meta> <span id=busuanzi_value_page_pv><img src=/img/spinner.svg alt=spinner.svg></span> times read </span>
+</div>
+</header>
+<div class=post-toc id=post-toc>
+<h2 class=post-toc-title>Contents</h2>
+<div class="post-toc-content always-active">
+<nav id=TableOfContents>
+<ul>
+<li><a href=#构造函数和析构函数>构造函数和析构函数</a></li>
+<li><a href=#类对象初始化>类对象初始化</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<div class=post-content>
+<p>在 C++ 里，关注一个对象的“生命周期”，意味着了解如何创建对象、拷贝(COPY)对象、移动(MOVE)对象以及如何销毁对象，首先来定义什么是 COPY 和 MOVE:</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=n>string</span> <span class=nf>ident</span><span class=p>(</span><span class=n>string</span> <span class=n>arg</span><span class=p>)</span> <span class=c1>// string passed by value (copied into arg)
+</span><span class=c1></span><span class=p>{</span>
+    <span class=k>return</span> <span class=n>arg</span><span class=p>;</span> <span class=c1>// return str ing (move the value of arg out of ident() to a caller)
+</span><span class=c1></span><span class=p>}</span>
+<span class=kt>int</span> <span class=nf>main</span> <span class=p>()</span>
+<span class=p>{</span>
+    <span class=n>string</span> <span class=n>s1</span> <span class=p>{</span><span class=s>&#34;Adams&#34;</span><span class=p>};</span> <span class=c1>// initialize str ing (constr uct in s1).
+</span><span class=c1></span>    <span class=n>s1</span> <span class=o>=</span> <span class=n>indet</span><span class=p>(</span><span class=n>s1</span><span class=p>);</span> <span class=c1>// copy s1 into ident()
+</span><span class=c1></span>    <span class=c1>// move the result of ident(s1) into s1;
+</span><span class=c1></span>    <span class=c1>// s1’s value is &#34;Adams&#34;.
+</span><span class=c1></span>    <span class=n>string</span> <span class=n>s2</span> <span class=p>{</span><span class=s>&#34;Pratchett&#34;</span><span class=p>};</span> <span class=c1>// initialize str ing (constr uct in s2)
+</span><span class=c1></span>    <span class=n>s1</span> <span class=o>=</span> <span class=n>s2</span><span class=p>;</span> <span class=c1>// copy the value of s2 into s1
+</span><span class=c1></span>    <span class=c1>// both s1 and s2 have the value &#34;Pratchett&#34;.
+</span><span class=c1></span><span class=p>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这个例子用到了多个函数：</p>
+<ol>
+<li>s1和s2用字符串常量初始化string的构造函数</li>
+<li>传值的函数入参做了 copy</li>
+<li>返回时将结果 move 到一个临时变量</li>
+<li>move 临时变量到 s1</li>
+<li>s2 拷贝赋值到 s1</li>
+<li>析构函数释放所有资源</li>
+</ol>
+<p>总结一个通用的类 X 需要下面这些构造函数：</p>
+<div class=highlight><div class=chroma>
+<table class=lntable><tr><td class=lntd>
+<pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td>
+<td class=lntd>
+<pre tabindex=0 class=chroma><code class=language-c++ data-lang=c++><span class=k>class</span> <span class=nc>X</span> <span class=p>{</span>
+    <span class=n>X</span><span class=p>(</span><span class=n>Sometype</span><span class=p>);</span>             <span class=c1>// ordinary constructor: create an object
+</span><span class=c1></span>    <span class=n>X</span><span class=p>();</span>                     <span class=c1>// default constructor
+</span><span class=c1></span>    <span class=n>X</span><span class=p>(</span><span class=k>const</span> <span class=n>X</span> <span class=o>&amp;</span><span class=p>);</span>            <span class=c1>// copy constructor
+</span><span class=c1></span>    <span class=n>X</span><span class=p>(</span><span class=n>X</span> <span class=o>&amp;&amp;</span><span class=p>);</span>                 <span class=c1>// move constructor
+</span><span class=c1></span>    <span class=n>X</span> <span class=o>&amp;</span><span class=k>operator</span><span class=o>=</span><span class=p>(</span><span class=k>const</span> <span class=n>X</span> <span class=o>&amp;</span><span class=p>);</span> <span class=c1>// copy assignment: clean up target and copy
+</span><span class=c1></span>    <span class=n>X</span> <span class=o>&amp;</span><span class=k>operator</span><span class=o>=</span><span class=p>(</span><span class=n>X</span> <span class=o>&amp;&amp;</span><span class=p>);</span>      <span class=c1>// move assignment: clean up target and move
+</span><span class=c1></span>    <span class=err>˜</span><span class=n>X</span><span class=p>();</span>                    <span class=c1>// destructor: clean up
+</span><span class=c1></span>    <span class=c1>// ...
+</span><span class=c1></span><span class=p>};</span>
+</code></pre></td></tr></table>
+</div>
+</div><h1 id=构造函数和析构函数>构造函数和析构函数</h1>
+<ul>
+<li>构造函数中常常要保证一些 invariant（不变式），类似于 size 必须严格和类中的数量相等。</li>
+<li>构造函数可以很好的与继承关系配合，自顶向下的创建对象，沿着 <code>基类->成员->自身</code> 的顺序进行构造。析构则反之。</li>
+<li>在内存区域显式管理内存时可能会手动调用构造/析构函数，例如 vector 的 push_back 和 pop_back，会进行放置式 new。</li>
+<li>基类的析构函数应当被声明为 virtual。</li>
+</ul>
+<h1 id=类对象初始化>类对象初始化</h1>
+<ul>
+<li>Init Without Constructors
+<ul>
+<li>基础类型直接初始化</li>
+<li>无构造函数类可以用 逐成员、copy、default init</li>
+<li>要注意默认类型只声明的时候是不初始化的</li>
+</ul>
+</li>
+<li>Init Using Constructors
+<ul>
+<li>显示定义了一个构造函数后，默认构造函数就消失了，但是拷贝构造函数依然有默认实现</li>
+<li>推荐用 {} 初始化，而不是 ()、=，{} 不允许窄化转换</li>
+<li>constructor 可以用 std::initializer_list 作为参数做初始化，要保证相互之间是同构的（homogeneous）</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class=post-copyright>
+<p class=copyright-item>
+<span class=item-title>Author</span>
+<span class=item-content><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</p>
+<p class=copyright-item>
+<span class=item-title>LastMod</span>
+<span class=item-content>
+2023-12-05
+<a href=https://github.com/lawrshen/lawrshen.github.io/commit/eadabb8d5dd46fd7e04cb74446076ad66b944173 title="c++ constructor">(eadabb8)</a>
+</span>
+</p>
+<p class=copyright-item>
+<span class=item-title>License</span>
+<span class=item-content><a rel="license noopener" href=https://creativecommons.org/licenses/by-nc-nd/4.0/ target=_blank>CC BY-NC-ND 4.0</a></span>
+</p>
+</div>
+<footer class=post-footer>
+<div class=post-tags>
+<a href=/tags/c++/>c++</a>
+<a href=/tags/c++11/>c++11</a>
+<a href=/tags/move/>move</a>
+</div>
+<nav class=post-nav>
+<a class=next href=/post/code/leveldb/table/>
+<span class="next-text nav-default">Leveldb Table 结构解析</span>
+<span class="next-text nav-mobile">Next</span>
+<i class="iconfont icon-right"></i>
+</a>
+</nav>
+</footer>
+</article>
+</div>
+<div id=gitalk-container></div>
+<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css crossorigin=anonymous>
+<script src=https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js crossorigin=anonymous></script>
+<script type=text/javascript>var gitalk=new Gitalk({id:'2023-11-28 09:42:09 \u002b0800 \u002b0800',title:'浅谈 C\u002b\u002b 的构造函数',clientID:'878b112800a679d0f89d',clientSecret:'f3042138c809f6ab3311d584d341299b188b7844',repo:'lawrshen.github.io',owner:'lawrshen',admin:['lawrshen'],body:decodeURI(location.href)});gitalk.render('gitalk-container')</script>
+<noscript>Please enable JavaScript to view the <a href=https://github.com/gitalk/gitalk>comments powered by gitalk.</a></noscript>
+</div>
+</main>
+<footer id=footer class=footer>
+<div class=social-links>
+<a href=mailto:lawrshen@qq.com class="iconfont icon-email" title=email></a>
+<a href=https://github.com/lawrshen class="iconfont icon-github" title=github></a>
+<a href=https://lawrshen.github.io/index.xml type=application/rss+xml class="iconfont icon-rss" title=rss></a>
+</div>
+<div class=copyright>
+<span class=power-by>
+Powered by <a class=hexo-link href=https://gohugo.io>Hugo</a>
+</span>
+<span class=division>|</span>
+<span class=theme-info>
+Theme -
+<a class=theme-link href=https://github.com/olOwOlo/hugo-theme-even>Even</a>
+</span>
+<div class=busuanzi-footer>
+<span id=busuanzi_container_site_pv> site pv: <span id=busuanzi_value_site_pv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+<span class=division>|</span>
+<span id=busuanzi_container_site_uv> site uv: <span id=busuanzi_value_site_uv><img src=/img/spinner.svg alt=spinner.svg></span> </span>
+</div>
+<span class=copyright-year>
+&copy;
+2021 -
+2023<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+</span>
+</div>
+</footer>
+<div class=back-to-top id=back-to-top>
+<i class="iconfont icon-up"></i>
+</div>
+</div>
+<script src=https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.min.js integrity="sha256-jwCP0NAdCBloaIWTWHmW4i3snUNMHUNO+jr9rYd2iOI=" crossorigin=anonymous></script>
+<script src=https://cdn.jsdelivr.net/npm/timeago.js@3.0.2/dist/timeago.locales.min.js integrity="sha256-ZwofwC1Lf/faQCzN7nZtfijVV6hSwxjQMwXL4gn9qU8=" crossorigin=anonymous></script>
+<script>var languageCode="en".replace(/-/g,'_').replace(/_(.*)/,function(b,a){return b.replace(a,a.toUpperCase())});timeago().render(document.querySelectorAll('.timeago'),languageCode),timeago.cancel()</script>
+<script type=text/javascript src=/js/main.min.c99b103c33d1539acf3025e1913697534542c4a5aa5af0ccc20475ed2863603b.js></script>
+<script type=application/javascript>var doNotTrack=!1;doNotTrack||(window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)},ga.l=+new Date,ga('create','G-FQBGCF2JH0','auto'),ga('set','anonymizeIp',!0),ga('send','pageview'))</script>
+<script async src=https://www.google-analytics.com/analytics.js></script>
+</body>
+</html>

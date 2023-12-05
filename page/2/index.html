@@ -85,6 +85,56 @@
 <section id=posts class=posts>
 <article class=post>
 <header class=post-header>
+<h1 class=post-title><a class=post-link href=/post/c++/smart-ptr/>浅谈modern c++的智能指针</a></h1>
+<div class=post-meta>
+<span class=post-time> 2023-01-13 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 522 words </span>
+<span class=more-meta> 2 mins read </span>
+</div>
+</header>
+<div class=post-content>
+<div class=post-summary>
+<p>手动的内存管理通常被认为很麻烦且不利于程序的可维护性，modern C++ 采用智能指针的方式对内存进行动态管理，本文试图对智能指针做一个简单的入门介绍。</p>
+</div>
+<div class=read-more>
+<a href=/post/c++/smart-ptr/ class=read-more-link>Read more...</a>
+</div>
+</div>
+</article>
+<article class=post>
+<header class=post-header>
+<h1 class=post-title><a class=post-link href=/post/net/io/io-models/>IO 模型浅谈</a></h1>
+<div class=post-meta>
+<span class=post-time> 2022-09-17 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 1334 words </span>
+<span class=more-meta> 3 mins read </span>
+</div>
+</header>
+<div class=post-content>
+<div class=post-summary>
+<p>网络 IO 的发展过程是随着 linux 的内核演变而变化，因此网络 IO 大致可以分为如下几个阶段：</p>
+<ol>
+<li>阻塞 IO(BIO)</li>
+<li>非阻塞 IO(NIO)</li>
+<li>IO 多路复用第一版(select/poll)</li>
+<li>IO 多路复用第二版(epoll)</li>
+<li>异步 IO(AIO)</li>
+</ol>
+<p>那么，BIO、NIO、AIO 有什么区别呢?</p>
+</div>
+<div class=read-more>
+<a href=/post/net/io/io-models/ class=read-more-link>Read more...</a>
+</div>
+</div>
+</article>
+<article class=post>
+<header class=post-header>
 <h1 class=post-title><a class=post-link href=/post/os/thread/pthread-faq/>多线程若干问</a></h1>
 <div class=post-meta>
 <span class=post-time> 2022-09-17 </span>
@@ -148,48 +198,6 @@
 </div>
 <div class=read-more>
 <a href=/post/golang/go-map/ class=read-more-link>Read more...</a>
-</div>
-</div>
-</article>
-<article class=post>
-<header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/se/id/>分布式唯一 Id</a></h1>
-<div class=post-meta>
-<span class=post-time> 2022-05-26 </span>
-<div class=post-category>
-<a href=/categories/coding/> coding </a>
-</div>
-<span class=more-meta> 426 words </span>
-<span class=more-meta> 1 min read </span>
-</div>
-</header>
-<div class=post-content>
-<div class=post-summary>
-UUID universally unique identifier，统一唯一标识符，是一个128位（16字节）的数字，由算法生成，算法可以是任意的，但是算法的种类不能太多，否则就不
-</div>
-<div class=read-more>
-<a href=/post/se/id/ class=read-more-link>Read more...</a>
-</div>
-</div>
-</article>
-<article class=post>
-<header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/net/io/epoll/>Epoll 简介</a></h1>
-<div class=post-meta>
-<span class=post-time> 2022-05-26 </span>
-<div class=post-category>
-<a href=/categories/coding/> coding </a>
-</div>
-<span class=more-meta> 2883 words </span>
-<span class=more-meta> 6 mins read </span>
-</div>
-</header>
-<div class=post-content>
-<div class=post-summary>
-<p>epoll 可以说是和 poll 非常相似的一种 I/O 多路复用技术，epoll 通过监控注册的多个描述字，来进行 I/O 事件的分发处理。不同于 poll 的是，epoll 不仅提供了默认的 level-triggered（条件触发）机制，还提供了性能更为强劲的 edge-triggered（边缘触发）机制。</p>
-</div>
-<div class=read-more>
-<a href=/post/net/io/epoll/ class=read-more-link>Read more...</a>
 </div>
 </div>
 </article>
