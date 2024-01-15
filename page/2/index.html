@@ -85,6 +85,28 @@
 <section id=posts class=posts>
 <article class=post>
 <header class=post-header>
+<h1 class=post-title><a class=post-link href=/post/net/tcp/tcp-backlog/>Tcp三次握手与Backlog</a></h1>
+<div class=post-meta>
+<span class=post-time> 2023-08-27 </span>
+<div class=post-category>
+<a href=/categories/coding/> coding </a>
+</div>
+<span class=more-meta> 1084 words </span>
+<span class=more-meta> 3 mins read </span>
+</div>
+</header>
+<div class=post-content>
+<div class=post-summary>
+<h1 id=三次握手>三次握手</h1>
+<p>服务端通过系统调用<code>bind()</code>和<code>listen()</code>绑定和监听socket-port，此时服务端处于 <strong>LISTEN</strong> 状态，当客户端调用 <code>connect()</code> 向服务端发起连接时，就进入到我们熟悉的三次握手当中。</p>
+</div>
+<div class=read-more>
+<a href=/post/net/tcp/tcp-backlog/ class=read-more-link>Read more...</a>
+</div>
+</div>
+</article>
+<article class=post>
+<header class=post-header>
 <h1 class=post-title><a class=post-link href=/post/c++/smart-ptr/>浅谈modern c++的智能指针</a></h1>
 <div class=post-meta>
 <span class=post-time> 2023-01-13 </span>
@@ -180,27 +202,6 @@
 </div>
 </div>
 </article>
-<article class=post>
-<header class=post-header>
-<h1 class=post-title><a class=post-link href=/post/golang/go-map/>Golang map简介</a></h1>
-<div class=post-meta>
-<span class=post-time> 2022-05-28 </span>
-<div class=post-category>
-<a href=/categories/golang/> golang </a>
-</div>
-<span class=more-meta> 904 words </span>
-<span class=more-meta> 2 mins read </span>
-</div>
-</header>
-<div class=post-content>
-<div class=post-summary>
-<p>golang 语言提供了 built-in 的 map 类型，提供 hash table 的功能。完成的特性主要有：增删查改。</p>
-</div>
-<div class=read-more>
-<a href=/post/golang/go-map/ class=read-more-link>Read more...</a>
-</div>
-</div>
-</article>
 </section>
 <nav class=pagination>
 <a class=prev href=/>
@@ -238,7 +239,7 @@ Theme -
 <span class=copyright-year>
 &copy;
 2021 -
-2023<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
+2024<span class=heart><i class="iconfont icon-heart"></i></span><span><a href=https://github.com/lawrshen class=theme-link>lawrshen</a></span>
 </span>
 </div>
 </footer>
